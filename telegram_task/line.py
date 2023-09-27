@@ -3,7 +3,6 @@ import logging
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import telegram_task.president
 
 
 @dataclass
@@ -60,8 +59,17 @@ class LineManager:
         self.display_name: str = str(type(worker))
 
     async def perform_task(self, job_order: JobOrder) -> None:
+        """Handles the execution of a specific task using the provided job order"""
         self._LOGGER.info(f"Starting to manage the job [{job_order.job_code}]")
         try:
             await self.worker.perform_task(job_description=job_order.job_description)
-        except:
-            pass
+        except TaskException as exception:
+            self.handle_task_exception(job_order.job_code, exception)
+        except Exception as exception:
+            self.handle_unfamiliar_exception(job_order.job_code, exception)
+
+    def handle_task_exception(self, job_code: uuid.UUID, exception: TaskException):
+        """Handle familiar task exception"""
+
+    def handle_unfamiliar_exception(self, job_code: uuid.UUID, exception: TaskException):
+        """Handle unfamiliar exception raised while performing a task"""
