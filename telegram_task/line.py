@@ -1,8 +1,10 @@
 """This module contains the outline for workers and jobs/tasks"""
 import logging
 import uuid
+from datetime import datetime
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from telegram_task.president import President
 
 
 @dataclass
@@ -31,12 +33,12 @@ class JobOrder:
 @dataclass
 class JobReport:
     """Holds the results of running a job/task"""
-    general_information: list[str] = None
-    detailed_information: list[str] = None
+    information: list[str] = None
+    warnings: list[str] = None
 
     def __init__(self):
-        self.general_information = []
-        self.detailed_information = []
+        self.information = []
+        self.warnings = []
 
 
 class Worker(ABC):
@@ -54,19 +56,64 @@ class LineManager:
     """Has a single worker of a specific type and manages its tasks"""
     _LOGGER = logging.getLogger(__name__)
 
-    def __init__(self, worker: Worker):
+    def __init__(self, worker: Worker, president: President):
         self.worker: Worker = worker
+        self.president: President = president
         self.display_name: str = str(type(worker))
+
+    def __str__(self) -> str:
+        return self.display_name
 
     async def perform_task(self, job_order: JobOrder) -> None:
         """Handles the execution of a specific task using the provided job order"""
-        self._LOGGER.info(f"Starting to manage the job [{job_order.job_code}]")
+        self._LOGGER.info(
+            "Starting to manage the job [%s]", {job_order.job_code}
+        )
+        self.handle_job_start(job_order.job_code)
         try:
-            await self.worker.perform_task(job_description=job_order.job_description)
+            report = await self.worker.perform_task(job_description=job_order.job_description)
+            self.handle_job_report(job_order.job_code, report)
         except TaskException as exception:
             self.handle_task_exception(job_order.job_code, exception)
         except Exception as exception:
             self.handle_unfamiliar_exception(job_order.job_code, exception)
+
+    def handle_job_start(self, job_code: uuid.UUID):
+        """Handle report from a completed job/task"""
+        self.president.telegram_bot.send_message(
+            chat_id=self.president.telegram_admin_id,
+            text=f"""
+⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now():%Y-%m-%d %H:%M:%S}</b>.
+""",
+            parse_mode='html'
+        )
+
+    def handle_job_report(self, job_code: uuid.UUID, report: JobReport):
+        """Handle report from a completed job/task"""
+        if report.warnings:
+            warnings = "\n".join(report.warnings)
+            self._LOGGER.error(
+                "Job [%s] raised some warnings:\n%s", job_code, warnings
+            )
+            self.president.telegram_bot.send_message(
+                chat_id=self.president.telegram_admin_id,
+                text=f"""
+⚠️ <b>{self}</b> on job <b>{job_code}</b> raised some warnings. Check the logs for more details.
+""",
+                parse_mode='html'
+            )
+        information = ", final report:\n" + \
+            "\n".join(report.information) if report.information else ""
+        self._LOGGER.info(
+            "Job [%s] is complete:%s", job_code, information
+        )
+        self.president.telegram_bot.send_message(
+            chat_id=self.president.telegram_admin_id,
+            text=f"""
+✅ <b>{self}</b> on job <b>{job_code}</b> is done.\n{information}
+""",
+            parse_mode='html'
+        )
 
     def handle_task_exception(self, job_code: uuid.UUID, exception: TaskException):
         """Handle familiar task exception"""

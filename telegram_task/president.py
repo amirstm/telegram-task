@@ -33,8 +33,8 @@ class President:
             telegram_bot: telegram.Bot = None,
             telegram_admin_id: int = None
     ):
-        self._telegram_bot = telegram_bot
-        self._telegram_admin_id = telegram_admin_id
+        self.telegram_bot = telegram_bot
+        self.telegram_admin_id = telegram_admin_id
         self.__telegram_que: asyncio.Queue = None
         self.__updater: telegram.ext.Updater = None
 
@@ -47,17 +47,17 @@ class President:
 
     async def __init_updater(self):
         """Initiates the telegram updater and starts polling"""
-        if self._telegram_bot:
+        if self.telegram_bot:
             self._LOGGER.info("Initiating telegram bot listener.")
             self.__telegram_que = asyncio.Queue()
             self.__updater = telegram.ext.Updater(
-                self._telegram_bot, update_queue=self.__telegram_que)
+                self.telegram_bot, update_queue=self.__telegram_que)
             await self.__updater.initialize()
             await self.__updater.start_polling()
             self._LOGGER.info("Telegram bot has started listening.")
 
     async def __close_updater(self):
         """Close the telegram updater"""
-        if self._telegram_bot:
+        if self.telegram_bot:
             await self.__updater.stop()
             self._LOGGER.info("Terminating telegram bot listener.")
