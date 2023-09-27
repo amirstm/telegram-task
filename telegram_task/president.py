@@ -1,10 +1,15 @@
+"""
+President module is used for managing the whole construction.
+Each president looks over several line managers, each of which
+manage workers and their tasks.
+Telegram bot is managed by the president too.
+"""
 import logging
-import telegram
 import asyncio
-import time
+import telegram
 
 
-class Manager:
+class President:
     """
     Manager class handles the scheduled run of workers, 
     as well as unscheduled runs commanded by the user. 
@@ -12,17 +17,26 @@ class Manager:
     _LOGGER = logging.getLogger(__name__)
 
     @classmethod
-    async def create(cls, telegram_bot: telegram.Bot = None):
+    async def create(
+        cls,
+        telegram_bot: telegram.Bot = None,
+        telegram_admin_id: int = None
+    ):
         """Class method for creating an instance asynchronously"""
-        self = Manager(telegram_bot=telegram_bot)
+        self = President(telegram_bot=telegram_bot,
+                         telegram_admin_id=telegram_admin_id)
         await self.__init_updater()
         return self
 
     def __init__(
             self,
             telegram_bot: telegram.Bot = None,
+            telegram_admin_id: int = None
     ):
         self._telegram_bot = telegram_bot
+        self._telegram_admin_id = telegram_admin_id
+        self.__telegram_que: asyncio.Queue = None
+        self.__updater: telegram.ext.Updater = None
 
     async def __aenter__(self):
         await self.__init_updater()
@@ -35,8 +49,8 @@ class Manager:
         """Initiates the telegram updater and starts polling"""
         if self._telegram_bot:
             self._LOGGER.info("Initiating telegram bot listener.")
-            self.__telegram_que: asyncio.Queue = asyncio.Queue()
-            self.__updater: telegram.ext.Updater = telegram.ext.Updater(
+            self.__telegram_que = asyncio.Queue()
+            self.__updater = telegram.ext.Updater(
                 self._telegram_bot, update_queue=self.__telegram_que)
             await self.__updater.initialize()
             await self.__updater.start_polling()

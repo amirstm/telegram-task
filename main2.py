@@ -1,12 +1,9 @@
 import os
 import asyncio
 import logging
-import time
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, Updater, CallbackContext, ExtBot, Application
 import telegram.ext
-from telegram_task import manager
+from telegram_task import president
 from dataclasses import dataclass
 
 load_dotenv()
@@ -29,7 +26,7 @@ async def main():
     logger.addHandler(stream_handler)
     que = asyncio.Queue()
     application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    manager_ins = manager.Manager(application.bot)
+    manager_ins = president.President(application.bot)
     updater = telegram.ext.Updater(application.bot, update_queue=que)
     await updater.initialize()
     await updater.start_polling()

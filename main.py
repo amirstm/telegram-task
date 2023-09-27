@@ -1,12 +1,9 @@
 import os
 import asyncio
 import logging
-import time
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, Updater, CallbackContext, ExtBot, Application
 import telegram.ext
-from telegram_task import manager
+from telegram_task import president
 from dataclasses import dataclass
 
 load_dotenv()
@@ -31,7 +28,9 @@ async def main():
     application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     # manager_ins = await manager.Manager.create(application.bot)
 
-    async with manager.Manager(application.bot) as manager_ins:
+    async with president.President(
+        telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
+    ) as manager_ins:
         await asyncio.sleep(10)
     # Option 1
     # update = await que.get()
