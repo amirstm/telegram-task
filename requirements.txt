@@ -1,2 +1,5 @@
 python-telegram-bot[socks]==20.5
 python-dotenv==1.0.0
+wheel==0.41.2
+pytest==7.4.2
+pytest-asyncio==0.21.1

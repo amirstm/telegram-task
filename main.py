@@ -32,6 +32,7 @@ async def main():
         telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
     ) as manager_ins:
         await asyncio.sleep(10)
+
     # Option 1
     # update = await que.get()
 
