@@ -69,16 +69,16 @@ class LineManager:
         self._LOGGER.info(
             "Starting to manage the job [%s]", {job_order.job_code}
         )
-        self.handle_job_start(job_order.job_code)
+        self.__handle_job_start(job_order.job_code)
         try:
             report = await self.worker.perform_task(job_description=job_order.job_description)
-            self.handle_job_report(job_order.job_code, report)
+            self.__handle_job_report(job_order.job_code, report)
         except TaskException as exception:
-            self.handle_task_exception(job_order.job_code, exception)
+            self.__handle_task_exception(job_order.job_code, exception)
         except Exception as exception:
-            self.handle_unfamiliar_exception(job_order.job_code, exception)
+            self.__handle_unfamiliar_exception(job_order.job_code, exception)
 
-    def handle_job_start(self, job_code: uuid.UUID):
+    def __handle_job_start(self, job_code: uuid.UUID):
         """Handle report from a completed job/task"""
         self.president.telegram_bot.send_message(
             chat_id=self.president.telegram_admin_id,
@@ -88,20 +88,11 @@ class LineManager:
             parse_mode='html'
         )
 
-    def handle_job_report(self, job_code: uuid.UUID, report: JobReport):
+    def __handle_job_report(self, job_code: uuid.UUID, report: JobReport):
         """Handle report from a completed job/task"""
-        if report.warnings:
-            warnings = "\n".join(report.warnings)
-            self._LOGGER.error(
-                "Job [%s] raised some warnings:\n%s", job_code, warnings
-            )
-            self.president.telegram_bot.send_message(
-                chat_id=self.president.telegram_admin_id,
-                text=f"""
-⚠️ <b>{self}</b> on job <b>{job_code}</b> raised some warnings. Check the logs for more details.
-""",
-                parse_mode='html'
-            )
+        self.__handle_job_warnings(
+            job_code=job_code, warnings=report.warnings
+        )
         information = ", final report:\n" + \
             "\n".join(report.information) if report.information else ""
         self._LOGGER.info(
@@ -115,8 +106,42 @@ class LineManager:
             parse_mode='html'
         )
 
-    def handle_task_exception(self, job_code: uuid.UUID, exception: TaskException):
-        """Handle familiar task exception"""
+    def __handle_job_warnings(self, job_code: uuid.UUID, warnings: list[str]):
+        """Handle a completed job/task's warnings, if any"""
+        if warnings:
+            warnings_agg = "\n".join(warnings)
+            self._LOGGER.error(
+                "Job [%s] raised some warnings:\n%s", job_code, warnings_agg
+            )
+            self.president.telegram_bot.send_message(
+                chat_id=self.president.telegram_admin_id,
+                text=f"""
+⚠️ <b>{self}</b> on job <b>{job_code}</b> raised some warnings. Check the logs for more details.
+""",
+                parse_mode='html'
+            )
 
-    def handle_unfamiliar_exception(self, job_code: uuid.UUID, exception: TaskException):
+    def __handle_task_exception(self, job_code: uuid.UUID, exception: TaskException):
+        """Handle familiar task exception"""
+        self._LOGGER.error("Job [%s] hit exception: %s",
+                           job_code, exception.__traceback__)
+        self.president.telegram_bot.send_message(
+            chat_id=self.president.telegram_admin_id,
+            text=f"""
+❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException. Check the logs for more details.
+{exception.__traceback__}
+""",
+            parse_mode='html'
+        )
+
+    def __handle_unfamiliar_exception(self, job_code: uuid.UUID, exception: Exception):
         """Handle unfamiliar exception raised while performing a task"""
+        self._LOGGER.fatal("Job [%s] hit exception: %s",
+                           job_code, exception.__traceback__)
+        self.president.telegram_bot.send_message(
+            chat_id=self.president.telegram_admin_id,
+            text=f"""
+☠️ <b>{self}</b> on job <b>{job_code}</b> hit an unfamiliar exception. Check the logs for more details.
+""",
+            parse_mode='html'
+        )
