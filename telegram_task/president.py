@@ -4,9 +4,11 @@ Each president looks over several line managers, each of which
 manage workers and their tasks.
 Telegram bot is managed by the president too.
 """
+from __future__ import annotations
 import logging
 import asyncio
 import telegram
+import telegram_task.line
 
 
 class President:
@@ -37,6 +39,7 @@ class President:
         self.telegram_admin_id = telegram_admin_id
         self.__telegram_que: asyncio.Queue = None
         self.__updater: telegram.ext.Updater = None
+        self._lines: list[telegram_task.line.LineManager] = []
 
     async def __aenter__(self):
         await self.__init_updater()
@@ -61,3 +64,7 @@ class President:
         if self.telegram_bot:
             await self.__updater.stop()
             self._LOGGER.info("Terminating telegram bot listener.")
+
+    def add_line(self, *args: telegram_task.line.LineManager):
+        """Add new line managers to the enterprise"""
+        self._lines.extend(args)

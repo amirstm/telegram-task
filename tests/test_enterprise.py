@@ -3,7 +3,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 import telegram.ext
-from telegram_task.line import LineManager, TaskException, JobOrder
+from telegram_task.line import LineManager
 from telegram_task.president import President
 from telegram_task.samples import (
     SleepyWorker,
@@ -31,5 +31,27 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         async with President(
             telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
         ) as president:
-            await president.telegram_bot.get_me()
+            bot_info = await president.telegram_bot.get_me()
+            self.assertTrue(bot_info.id)
             await asyncio.sleep(3)
+
+    async def test_president_with_sleepy_worker(self):
+        """Test a president overseeing the operation of a sleepy worker"""
+        application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        async with President(
+            telegram_bot=application.bot,
+            telegram_admin_id=TELEGRAM_CHAT_ID
+        ) as president:
+            president.add_line(
+                LineManager(worker=SleepyWorker(), president=president),
+                LineManager(worker=CalculatorWorker(), president=president),
+            )
+            self.assertTrue(
+                any((
+                    x for x in president._lines if isinstance(x, SleepyWorker)
+                )))
+            self.assertTrue(
+                any((
+                    x for x in president._lines if isinstance(x, CalculatorWorker)
+                )))
+            await asyncio.sleep(10)
