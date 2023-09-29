@@ -3,7 +3,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 import telegram.ext
-from telegram_task import president
+from telegram_task.president import President
 from dataclasses import dataclass
 
 load_dotenv()
@@ -26,12 +26,12 @@ async def main():
     logger.addHandler(stream_handler)
 
     application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    # manager_ins = await manager.Manager.create(application.bot)
-
-    async with president.President(
+    async with President(
         telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
-    ) as manager_ins:
-        await asyncio.sleep(10)
+    ) as president:
+        await application.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="Hello1!")
+        print(await president.telegram_bot.get_me())
+        await asyncio.sleep(5)
 
     # Option 1
     # update = await que.get()
