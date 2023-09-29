@@ -28,30 +28,29 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
     async def test_president_telegram_bot(self):
         """Test succesful initiation of president and its telegram bot"""
         application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        async with President(
+        president = President(
             telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
-        ) as president:
-            bot_info = await president.telegram_bot.get_me()
-            self.assertTrue(bot_info.id)
-            await asyncio.sleep(3)
+        )
+        bot_info = await president.telegram_bot.get_me()
+        self.assertTrue(bot_info.id)
 
     async def test_president_with_sleepy_worker(self):
         """Test a president overseeing the operation of a sleepy worker"""
         application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        async with President(
+        president = President(
             telegram_bot=application.bot,
             telegram_admin_id=TELEGRAM_CHAT_ID
-        ) as president:
-            president.add_line(
-                LineManager(worker=SleepyWorker(), president=president),
-                LineManager(worker=CalculatorWorker(), president=president),
-            )
-            self.assertTrue(
-                any((
-                    x for x in president._lines if isinstance(x, SleepyWorker)
-                )))
-            self.assertTrue(
-                any((
-                    x for x in president._lines if isinstance(x, CalculatorWorker)
-                )))
-            await asyncio.sleep(10)
+        )
+        president.add_line(
+            LineManager(worker=SleepyWorker()),
+            LineManager(worker=CalculatorWorker()),
+        )
+        print(president._lines)
+        self.assertTrue(
+            any((
+                x for x in president._lines if isinstance(x.worker, SleepyWorker)
+            )))
+        self.assertTrue(
+            any((
+                x for x in president._lines if isinstance(x.worker, CalculatorWorker)
+            )))

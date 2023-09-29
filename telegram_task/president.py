@@ -7,6 +7,7 @@ Telegram bot is managed by the president too.
 from __future__ import annotations
 import logging
 import asyncio
+import threading
 import telegram
 import telegram_task.line
 
@@ -18,18 +19,6 @@ class President:
     """
     _LOGGER = logging.getLogger(__name__)
 
-    @classmethod
-    async def create(
-        cls,
-        telegram_bot: telegram.Bot = None,
-        telegram_admin_id: int = None
-    ):
-        """Class method for creating an instance asynchronously"""
-        self = President(telegram_bot=telegram_bot,
-                         telegram_admin_id=telegram_admin_id)
-        await self.__init_updater()
-        return self
-
     def __init__(
             self,
             telegram_bot: telegram.Bot = None,
@@ -39,32 +28,43 @@ class President:
         self.telegram_admin_id = telegram_admin_id
         self.__telegram_que: asyncio.Queue = None
         self.__updater: telegram.ext.Updater = None
+        self.__is_listening: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
 
-    async def __aenter__(self):
-        await self.__init_updater()
-        return self
+    def start_operation(self) -> None:
+        self.loop = asyncio.get_event_loop()
+        group = asyncio.gather(self.__init_updater())
+        try:
+            self.loop.run_until_complete(group)
+        except RuntimeError as ex:
+            self._LOGGER.info("Telegram bot listener is terminated.")
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        await self.__close_updater()
+    def stop_operation(self) -> None:
+        self.__is_listening = False
+        self.loop.stop()
 
-    async def __init_updater(self):
+    async def __init_updater(self) -> None:
         """Initiates the telegram updater and starts polling"""
         if self.telegram_bot:
             self._LOGGER.info("Initiating telegram bot listener.")
+            self.__is_listening = True
             self.__telegram_que = asyncio.Queue()
             self.__updater = telegram.ext.Updater(
                 self.telegram_bot, update_queue=self.__telegram_que)
             await self.__updater.initialize()
             await self.__updater.start_polling()
             self._LOGGER.info("Telegram bot has started listening.")
-
-    async def __close_updater(self):
-        """Close the telegram updater"""
-        if self.telegram_bot:
+            await self.__telegram_listener()
             await self.__updater.stop()
             self._LOGGER.info("Terminating telegram bot listener.")
 
-    def add_line(self, *args: telegram_task.line.LineManager):
+    async def __telegram_listener(self) -> None:
+        self._LOGGER.info("telegram_listener loop has started.")
+        while self.__is_listening:
+            new_update = await self.__telegram_que.get()
+            self._LOGGER.info("Update from telegram %s", new_update)
+        self._LOGGER.info("telegram_listener is done.")
+
+    def add_line(self, *args: telegram_task.line.LineManager) -> None:
         """Add new line managers to the enterprise"""
         self._lines.extend(args)

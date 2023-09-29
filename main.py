@@ -1,6 +1,8 @@
 import os
 import asyncio
 import logging
+import time
+import threading
 from dotenv import load_dotenv
 import telegram.ext
 from telegram_task.president import President
@@ -13,7 +15,13 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-async def main():
+def kill_president(president):
+    time.sleep(10)
+    print("Killing president")
+    president.stop_operation()
+
+
+def main():
     logger = logging.getLogger(None)  # "telegram_task.manager")
     formatter = logging.Formatter(
         '%(asctime)s | %(name)s | %(levelname)s: %(message)s')
@@ -26,19 +34,16 @@ async def main():
     logger.addHandler(stream_handler)
 
     application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    async with President(
+    president = President(
         telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
-    ) as president:
-        await application.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="Hello1!")
-        print(await president.telegram_bot.get_me())
-        await asyncio.sleep(5)
-
-    # Option 1
-    # update = await que.get()
-
-    # Option 2, replace option 1 if you like
-    # update = que.get_nowait()
+    )
+    listener_thread = threading.Thread(
+        target=kill_president,
+        args=(president,)
+    )
+    listener_thread.start()
+    president.start_operation()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
