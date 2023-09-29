@@ -7,7 +7,6 @@ Telegram bot is managed by the president too.
 from __future__ import annotations
 import logging
 import asyncio
-import threading
 import telegram
 import telegram_task.line
 
@@ -30,18 +29,22 @@ class President:
         self.__updater: telegram.ext.Updater = None
         self.__is_listening: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
+        self.__operation_loop: asyncio.AbstractEventLoop = None
 
     def start_operation(self) -> None:
-        self.loop = asyncio.get_event_loop()
-        group = asyncio.gather(self.__init_updater())
+        """Start the operation of the enterprise after full initiation"""
+        self.__operation_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.__operation_loop)
         try:
-            self.loop.run_until_complete(group)
-        except RuntimeError as ex:
+            group = asyncio.gather(self.__init_updater())
+            self.__operation_loop.run_until_complete(group)
+        except RuntimeError:
             self._LOGGER.info("Telegram bot listener is terminated.")
 
     def stop_operation(self) -> None:
+        """Stop the enterprise operation"""
         self.__is_listening = False
-        self.loop.stop()
+        self.__operation_loop.stop()
 
     async def __init_updater(self) -> None:
         """Initiates the telegram updater and starts polling"""

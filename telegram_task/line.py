@@ -72,7 +72,8 @@ class LineManager:
         worker: Worker
     ):
         self.worker: Worker = worker
-        self.display_name: str = str(type(worker))
+        # self.display_name: str = str(type(worker))
+        self.display_name: str = worker.__class__.__name__
 
     def __str__(self) -> str:
         return self.display_name
