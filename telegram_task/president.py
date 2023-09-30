@@ -34,6 +34,10 @@ class President:
         self.__operation_loop: asyncio.AbstractEventLoop = None
         self.__killer_thread: threading.Thread = None
 
+    def __operation_group(self) -> function:
+        """Returns the group of tasks run on operation"""
+        return asyncio.gather(self.__init_updater())
+
     def start_operation(self, lifespan: int = 0) -> None:
         """Start the operation of the enterprise after full initiation"""
         self._LOGGER.info("President is starting the operation.")
@@ -46,7 +50,7 @@ class President:
             )
             self.__killer_thread.start()
         try:
-            group = asyncio.gather(self.__init_updater())
+            group = self.__operation_group()
             _ = self.__operation_loop.run_until_complete(group)
         except RuntimeError:
             self._LOGGER.info("Telegram bot listener is terminated.")
@@ -63,7 +67,8 @@ class President:
         )
         self.__is_listening = True
         try:
-            await asyncio.wait_for(self.__init_updater(), timeout=lifespan)
+            group = self.__operation_group()
+            await asyncio.wait_for(group, timeout=lifespan)
         except asyncio.exceptions.TimeoutError:
             self.__is_listening = False
             self._LOGGER.info("Telegram bot listener is terminated.")

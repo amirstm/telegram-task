@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import telegram_task.president
@@ -24,11 +24,41 @@ class JobOrder:
 
     def __init__(
         self,
-        job_description: JobDescription = JobDescription(),
-        job_code: uuid.UUID = uuid.uuid4()
+        job_description: JobDescription = None,
+        job_code: uuid.UUID = None
     ):
-        self.job_description = job_description
-        self.job_code = job_code
+        if job_description:
+            self.job_description = job_description
+        else:
+            self.job_description = JobDescription()
+        if job_code:
+            self.job_code = job_code
+        else:
+            self.job_code = uuid.uuid4()
+
+
+@dataclass
+class CronJobOrder(JobOrder):
+    """
+    CronJobOrder is like a JubOrder, 
+    but it holds necessary data to run the task on a daily schedul
+    """
+    daily_run_time: time = None
+    off_days: list[int] = None
+
+    def __init__(
+            self,
+            daily_run_time: time,
+            job_description: JobDescription = None,
+            job_code: uuid.UUID = uuid.uuid4(),
+            off_days: list[int] = None
+    ):
+        self.daily_run_time = daily_run_time
+        if off_days:
+            self.off_days = off_days
+        else:
+            self.off_days = []
+        super().__init__(job_description=job_description, job_code=job_code)
 
 
 @dataclass
@@ -73,11 +103,14 @@ class LineManager:
 
     def __init__(
         self,
-        worker: Worker
+        worker: Worker,
+        cron_job_orders: list[CronJobOrder] = None
     ):
         self.worker: Worker = worker
-        # self.display_name: str = str(type(worker))
         self.display_name: str = worker.__class__.__name__
+        self.cron_job_orders: list[CronJobOrder] = cron_job_orders \
+            if cron_job_orders \
+            else []
 
     def __str__(self) -> str:
         return self.display_name
