@@ -41,7 +41,8 @@ def main():
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    application = telegram.ext.ApplicationBuilder().proxy_url(
+        PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
     president = President(
         telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
     )

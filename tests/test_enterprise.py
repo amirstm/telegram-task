@@ -27,7 +27,8 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
 
     async def test_president_telegram_bot(self):
         """Test succesful initiation of president and its telegram bot"""
-        application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        application = telegram.ext.ApplicationBuilder().proxy_url(
+            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
             telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
         )
@@ -36,7 +37,8 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
 
     def test_president_add_lines(self):
         """Test a president overseeing the operation of a sleepy worker"""
-        application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        application = telegram.ext.ApplicationBuilder().proxy_url(
+            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
             telegram_app=application,
             telegram_admin_id=TELEGRAM_CHAT_ID
@@ -55,27 +57,25 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
                 x for x in president._lines if isinstance(x.worker, CalculatorWorker) and x.display_name == CalculatorWorker.__name__
             )))
 
+    def test_president_operation_synchronous(self):
+        application = telegram.ext.ApplicationBuilder().proxy_url(
+            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
+        president = President(
+            telegram_app=application,
+            telegram_admin_id=TELEGRAM_CHAT_ID
+        )
+        president.start_operation(lifespan=1)
+
     async def run_job(self, president: President, line_manager: LineManager, job_description: JobDescription) -> bool:
         return await line_manager.perform_task(
             job_order=JobOrder(job_description=job_description),
             president=president
         )
 
-    def test_president_operation_synchronous(self):
-        application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
-        line_manager = LineManager(worker=SleepyWorker())
-        president.add_line(
-            line_manager,
-        )
-        president.start_operation(lifespan=1)
-
     async def test_president_perform_single_job(self):
         """Test a president overseeing the operation of a sleepy worker"""
-        application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        application = telegram.ext.ApplicationBuilder().proxy_url(
+            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
             telegram_app=application,
             telegram_admin_id=TELEGRAM_CHAT_ID
@@ -108,7 +108,8 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
 
     async def test_president_perform_multiple_jobs(self):
         """Test a president overseeing the operation of a multiple lines"""
-        application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        application = telegram.ext.ApplicationBuilder().proxy_url(
+            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
             telegram_app=application,
             telegram_admin_id=TELEGRAM_CHAT_ID
