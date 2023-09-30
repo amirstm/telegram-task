@@ -2,6 +2,8 @@
 from __future__ import annotations
 import logging
 import uuid
+import threading
+import asyncio
 from datetime import datetime
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -94,110 +96,113 @@ class LineManager:
             )
             return True
         except TaskException as exception:
-            self.__handle_task_exception(
-                job_order.job_code, exception, president
-            )
+            # self.__handle_task_exception(
+            #     job_order.job_code, exception, president
+            # )
+            pass
         except Exception as exception:
-            self.__handle_unfamiliar_exception(
-                job_order.job_code, exception, president
-            )
+            # self.__handle_unfamiliar_exception(
+            #     job_order.job_code, exception, president
+            # )
+            pass
         return False
+
+    def __telegram_report(self, president: telegram_task.president.President, text: str) -> None:
+        if president and president.telegram_app:
+            president.telegram_app.job_queue.run_once(
+                lambda context: context.bot.send_message(
+                    chat_id=president.telegram_admin_id,
+                    text=text,
+                    parse_mode='html'
+                ),
+                when=0
+            )
 
     def __handle_job_start(
         self,
         job_code: uuid.UUID,
         president: telegram_task.president.President = None
-    ):
-        """Handle report from a completed job/task"""
+    ) -> None:
+        """Handle the initiation of a job/task"""
         self._LOGGER.info(
             "Starting to manage the job [%s]", {job_code}
         )
-        if president and president.telegram_bot:
-            president.telegram_bot.send_message(
-                chat_id=president.telegram_admin_id,
-                text=f"""
+        self.__telegram_report(
+            president=president,
+            text=f"""
 ⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now():%Y-%m-%d %H:%M:%S}</b>.
-""",
-                parse_mode='html'
-            )
+"""
+        )
 
     def __handle_job_report(
             self,
             job_code: uuid.UUID,
             report: JobReport,
             president: telegram_task.president.President = None
-    ):
+    ) -> None:
         """Handle report from a completed job/task"""
         self.__handle_job_warnings(
             job_code=job_code, warnings=report.warnings, president=president
         )
-        information = ", final report:\n" + \
+        information = "\n" + \
             "\n".join(report.information) if report.information else ""
         self._LOGGER.info(
             "Job [%s] is complete:%s", job_code, information
         )
-        if president and president.telegram_bot:
-            president.telegram_bot.send_message(
-                chat_id=president.telegram_admin_id,
-                text=f"""
-✅ <b>{self}</b> on job <b>{job_code}</b> is done.\n{information}
-""",
-                parse_mode='html'
-            )
+        self.__telegram_report(
+            president=president,
+            text=f"""
+✅ <b>{self}</b> on job <b>{job_code}</b> is done.{information}
+"""
+        )
 
     def __handle_job_warnings(
             self,
             job_code: uuid.UUID,
             warnings: list[str],
             president: telegram_task.president.President = None
-    ):
+    ) -> None:
         """Handle a completed job/task's warnings, if any"""
         if warnings:
             warnings_agg = "\n".join(warnings)
             self._LOGGER.error(
                 "Job [%s] raised some warnings:\n%s", job_code, warnings_agg
             )
-            if president and president.telegram_bot:
-                president.telegram_bot.send_message(
-                    chat_id=president.telegram_admin_id,
-                    text=f"""
+            self.__telegram_report(
+                president=president,
+                text=f"""
 ⚠️ <b>{self}</b> on job <b>{job_code}</b> raised some warnings. Check the logs for more details.
-""",
-                    parse_mode='html'
-                )
+"""
+            )
 
     def __handle_task_exception(
             self,
             job_code: uuid.UUID,
             exception: TaskException,
             president: telegram_task.president.President = None
-    ):
+    ) -> None:
         """Handle familiar task exception"""
         self._LOGGER.error("Job [%s] hit exception: %s",
                            job_code, exception.__traceback__)
-        if president and president.telegram_bot:
-            president.telegram_bot.send_message(
-                chat_id=president.telegram_admin_id,
-                text=f"""
+        self.__telegram_report(
+            president=president,
+            text=f"""
 ❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException. Check the logs for more details.
-""",
-                parse_mode='html'
-            )
+"""
+        )
 
     def __handle_unfamiliar_exception(
             self,
             job_code: uuid.UUID,
             exception: Exception,
             president: telegram_task.president.President = None
-    ):
+    ) -> None:
         """Handle unfamiliar exception raised while performing a task"""
         self._LOGGER.fatal("Job [%s] hit exception: %s",
                            job_code, exception.__traceback__)
-        if president and president.telegram_bot:
-            president.telegram_bot.send_message(
-                chat_id=president.telegram_admin_id,
-                text=f"""
+        self.__telegram_report(
+            president=president,
+            text=f"""
 ☠️ <b>{self}</b> on job <b>{job_code}</b> hit an unfamiliar exception. Check the logs for more details.
-""",
-                parse_mode='html'
-            )
+"""
+        )

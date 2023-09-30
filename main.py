@@ -4,6 +4,7 @@ import logging
 import time
 import threading
 from dotenv import load_dotenv
+from logging.handlers import TimedRotatingFileHandler
 import telegram.ext
 from telegram_task.president import President
 import telegram_task
@@ -32,23 +33,28 @@ def main():
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
 
+    formatter = logging.Formatter(
+        '%(asctime)s | %(name)s | %(levelname)s: %(message)s')
+    logger.setLevel(logging.INFO)
+    logFilePath = "logs/log_"
+    file_handler = TimedRotatingFileHandler(
+        filename=logFilePath, when='midnight', backupCount=30)
+    file_handler.suffix = '%Y_%m_%d.log'
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
-
-    lm = telegram_task.line.LineManager(
-        worker=telegram_task.samples.SleepyWorker()
-    )
-    print(lm.display_name)
 
     application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     president = President(
-        telegram_bot=application.bot, telegram_admin_id=TELEGRAM_CHAT_ID
+        telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
     )
-    listener_thread = threading.Thread(
-        target=kill_president,
-        args=(president,)
-    )
-    listener_thread.start()
-    president.start_operation()
+    # listener_thread = threading.Thread(
+    #     target=kill_president,
+    #     args=(president,)
+    # )
+    # listener_thread.start()
+    president.start_operation(lifespan=3)
 
 
 if __name__ == '__main__':
