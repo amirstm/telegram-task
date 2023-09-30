@@ -2,8 +2,6 @@
 from __future__ import annotations
 import logging
 import uuid
-import threading
-import asyncio
 from datetime import datetime
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -59,6 +57,10 @@ class Worker(ABC):
     @abstractmethod
     async def perform_task(self, job_description: JobDescription) -> JobReport:
         """Performs a specific task using the provided job description"""
+
+    @abstractmethod
+    async def is_job_description_ok(self, job_description: JobDescription) -> bool:
+        """Checks if the provided job description is of a suitable type"""
 
 
 class TaskException(Exception):

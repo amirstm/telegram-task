@@ -19,6 +19,9 @@ class SleepyWorker(Worker):
             warnings=["Worker is too sleepy!"]
         )
 
+    async def is_job_description_ok(self, job_description: JobDescription) -> bool:
+        return isinstance(job_description, JobDescription)
+
 
 class MathematicalOperation(Enum):
     """
@@ -61,3 +64,6 @@ class CalculatorWorker(Worker):
         return JobReport(
             information=[f"Result ➡️ {result}"]
         )
+
+    async def is_job_description_ok(self, job_description: JobDescription) -> bool:
+        return isinstance(job_description, CalculatorJobDescription)

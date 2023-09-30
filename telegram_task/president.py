@@ -27,10 +27,8 @@ class President:
             telegram_admin_id: int = None
     ):
         self.telegram_app = telegram_app
-        self.telegram_bot = self.telegram_app.bot
         self.telegram_admin_id = telegram_admin_id
         self.__telegram_que: asyncio.Queue = None
-        self.__updater: telegram.ext.Updater = None
         self.__is_listening: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
         self.__operation_loop: asyncio.AbstractEventLoop = None
@@ -96,15 +94,15 @@ class President:
         if self.telegram_app:
             self._LOGGER.info("Initiating telegram bot listener.")
             self.__telegram_que = asyncio.Queue()
-            self.__updater = telegram.ext.Updater(
-                self.telegram_bot, update_queue=self.__telegram_que
+            __updater = telegram.ext.Updater(
+                self.telegram_app.bot, update_queue=self.__telegram_que
             )
-            await self.__updater.initialize()
-            await self.__updater.start_polling()
+            await __updater.initialize()
+            await __updater.start_polling()
             await self.telegram_app.job_queue.start()
             self._LOGGER.info("Telegram bot has started listening.")
             await self.__telegram_listener()
-            await self.__updater.stop()
+            await __updater.stop()
             await self.telegram_app.job_queue.stop()
             self._LOGGER.info("Terminating telegram bot listener.")
 

@@ -1,9 +1,6 @@
 import unittest
 import os
-import threading
 import asyncio
-import logging
-from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
 import telegram.ext
 from telegram_task.line import LineManager, JobDescription, JobOrder
@@ -34,7 +31,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         president = President(
             telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
         )
-        bot_info = await president.telegram_bot.get_me()
+        bot_info = await president.telegram_app.bot.get_me()
         self.assertTrue(bot_info.id)
 
     def test_president_add_lines(self):
@@ -123,7 +120,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
             line_manager2
         )
         group = asyncio.gather(
-            president.start_operation_async(lifespan=5),
+            president.start_operation_async(lifespan=10),
             self.run_jobs(
                 president=president,
                 jobs=[
