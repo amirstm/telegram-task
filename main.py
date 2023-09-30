@@ -27,14 +27,6 @@ def main():
     logger = logging.getLogger(None)  # "telegram_task.manager")
     formatter = logging.Formatter(
         '%(asctime)s | %(name)s | %(levelname)s: %(message)s')
-    logger.setLevel(logging.DEBUG)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(formatter)
-
-    formatter = logging.Formatter(
-        '%(asctime)s | %(name)s | %(levelname)s: %(message)s')
     logger.setLevel(logging.INFO)
     logFilePath = "logs/log_"
     file_handler = TimedRotatingFileHandler(
@@ -43,6 +35,10 @@ def main():
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
     application = telegram.ext.ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()

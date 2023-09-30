@@ -96,15 +96,13 @@ class LineManager:
             )
             return True
         except TaskException as exception:
-            # self.__handle_task_exception(
-            #     job_order.job_code, exception, president
-            # )
-            pass
+            self.__handle_task_exception(
+                job_order.job_code, exception, president
+            )
         except Exception as exception:
-            # self.__handle_unfamiliar_exception(
-            #     job_order.job_code, exception, president
-            # )
-            pass
+            self.__handle_unfamiliar_exception(
+                job_order.job_code, exception, president
+            )
         return False
 
     def __telegram_report(self, president: telegram_task.president.President, text: str) -> None:
