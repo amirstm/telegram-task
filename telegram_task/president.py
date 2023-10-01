@@ -5,11 +5,12 @@ manage workers and their tasks.
 Telegram bot is managed by the president too.
 """
 from __future__ import annotations
+from typing import Callable, Awaitable
 import logging
 import asyncio
 import threading
 from time import sleep
-from datetime import datetime, date
+from datetime import datetime, date, time
 import telegram
 import telegram.ext
 import telegram_task.line
@@ -33,11 +34,20 @@ class President:
         self.__is_running: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
         self.__operation_loop: asyncio.AbstractEventLoop = None
-        self.__killer_thread: threading.Thread = None
+        self.daily_cron_jobs: list[
+            tuple[
+                telegram_task.line.LineManager,
+                telegram_task.line.CronJobOrder,
+                bool
+            ]
+        ] = []
 
-    def __operation_group(self) -> asyncio.Future:
+    def __operation_group(self) -> Callable[[], Awaitable[bool]]:
         """Returns the group of tasks run on operation"""
-        return asyncio.gather(self.__init_updater())
+        return asyncio.gather(
+            self.__init_updater(),
+            self.__handle_crons()
+        )
 
     def start_operation(self, lifespan: int = 0) -> None:
         """Start the operation of the enterprise after full initiation"""
@@ -46,10 +56,10 @@ class President:
         self.__operation_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.__operation_loop)
         if lifespan > 0:
-            self.__killer_thread = threading.Thread(
+            __killer_thread = threading.Thread(
                 target=self.__automatic_killer, args=(lifespan,)
             )
-            self.__killer_thread.start()
+            __killer_thread.start()
         try:
             group = self.__operation_group()
             _ = self.__operation_loop.run_until_complete(group)
@@ -124,23 +134,57 @@ class President:
         """Handling cron jobs associated with lines"""
         self._LOGGER.info("Handling cron jobs has started.")
         while self.__is_running:
-            daily_tasks = self.get_daily_tasks()
+            today = date.today()
+            self.daily_cron_jobs = self.get_daily_cron_jobs()
             self._LOGGER.info(
                 "Handling [%d] cron jobs for [%s]",
-                len(daily_tasks),
-                date.today()
+                len(self.daily_cron_jobs),
+                today
             )
-            self.__report_daily_tasks(daily_tasks)
+            self.__report_daily_tasks(daily_tasks=self.daily_cron_jobs)
+            daily_tasks = [
+                self.__convert_cron_job_to_task(job=x)
+                for x in self.daily_cron_jobs
+            ]
+            await asyncio.gather(*daily_tasks)
+            self._LOGGER.info(
+                "Cron jobs for [%s] are complete",
+                today
+            )
+            await asyncio.sleep(
+                (
+                    datetime.combine(datetime.now(), time.max) -
+                    datetime.now()
+                ).total_seconds())
+        self._LOGGER.info("Handling cron jobs has been stopped.")
+
+    async def __convert_cron_job_to_task(
+            self,
+            job: tuple[
+                telegram_task.line.LineManager,
+                telegram_task.line.CronJobOrder,
+                bool
+            ]
+    ) -> None:
+        """Convert cron jobs to awaitable tasks"""
+        time_to_sleep = (
+            datetime.combine(datetime.today(), job[1].daily_run_time) -
+            datetime.now()
+        ).total_seconds()
+        if time_to_sleep > 0:
+            await asyncio.sleep(time_to_sleep)
+        job[2] = await job[0].perform_task(job_order=job[1], president=self)
 
     def __report_daily_tasks(
             self,
             daily_tasks: list[tuple[
                 telegram_task.line.LineManager,
-                telegram_task.line.CronJobOrder
+                telegram_task.line.CronJobOrder,
+                bool
             ]]
     ) -> None:
         """Report daily tasks on telegram"""
-        report = f"📑 Cron jobs for {datetime.now():%Y/%m/%d}\n" + \
+        report = f"📑 Cron jobs for {datetime.now():%Y/%m/%d}:\n" + \
             "\n".join(
                 [
                     f"⚙️ {x[0]} 🕔 {x[1].daily_run_time:%H:%M:%S}"
@@ -148,22 +192,23 @@ class President:
                 ]
             ) \
             if daily_tasks \
-            else f"📑 No cron jobs for {datetime.now():%Y/%m/%d}"
+            else f"📑 No cron jobs for {datetime.now():%Y/%m/%d}."
         self._LOGGER.info(report)
         self.telegram_report(report)
 
-    def get_daily_tasks(
+    def get_daily_cron_jobs(
             self
     ) -> list[tuple[
         telegram_task.line.LineManager,
-        telegram_task.line.CronJobOrder
+        telegram_task.line.CronJobOrder,
+        bool
     ]]:
-        """Get cron task for the rest of the day"""
+        """Get cron tasks for the rest of the day"""
         now_datetime = datetime.now()
         now_time = now_datetime.time()
         weekday = now_datetime.weekday()
         return sorted([
-            [x, y] for x in self._lines
+            [x, y, None] for x in self._lines
             for y in x.cron_job_orders
             if weekday not in y.off_days and y.daily_run_time > now_time
         ], key=lambda x: x[1].daily_run_time)
