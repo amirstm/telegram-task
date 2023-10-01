@@ -141,15 +141,8 @@ class LineManager:
         return False
 
     def __telegram_report(self, president: telegram_task.president.President, text: str) -> None:
-        if president and president.telegram_app:
-            president.telegram_app.job_queue.run_once(
-                lambda context: context.bot.send_message(
-                    chat_id=president.telegram_admin_id,
-                    text=text,
-                    parse_mode='html'
-                ),
-                when=0
-            )
+        if president:
+            president.telegram_report(text=text)
 
     def __handle_job_start(
         self,
@@ -163,7 +156,7 @@ class LineManager:
         self.__telegram_report(
             president=president,
             text=f"""
-⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now():%Y-%m-%d %H:%M:%S}</b>.
+⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now():%Y/%m/%d %H:%M:%S}</b>.
 """
         )
 

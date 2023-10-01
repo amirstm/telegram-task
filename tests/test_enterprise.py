@@ -1,9 +1,15 @@
 import unittest
 import os
 import asyncio
+from datetime import datetime, time
 from dotenv import load_dotenv
 import telegram.ext
-from telegram_task.line import LineManager, JobDescription, JobOrder
+from telegram_task.line import (
+    LineManager,
+    JobDescription,
+    JobOrder,
+    CronJobOrder
+)
 from telegram_task.president import President
 from telegram_task.samples import (
     SleepyWorker,
@@ -25,14 +31,14 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    async def test_president_telegram_bot(self):
+    async def test_president_telegram_bot_get_me(self):
         """Test succesful initiation of president and its telegram bot"""
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
             telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
         )
-        bot_info = await president.telegram_app.bot.get_me()
+        bot_info = await president._telegram_app.bot.get_me()
         self.assertTrue(bot_info.id)
 
     def test_president_add_lines(self):
@@ -141,3 +147,41 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         _, successes = await group
         self.assertTrue(successes[0] and successes[1])
         self.assertFalse(successes[2] or successes[3])
+
+    def test_president_perform_cron_job_init(self):
+        """Test handling of cron jobs on president"""
+        if datetime.now().time > time(hour=23, minute=58):
+            return
+        line_manager1 = LineManager(
+            worker=SleepyWorker(),
+            cron_job_orders=[
+                CronJobOrder(time(hour=23, minute=59, second=59))
+            ]
+        )
+        line_manager2 = LineManager(
+            worker=CalculatorWorker(),
+            cron_job_orders=[
+                CronJobOrder(
+                    time(hour=23, minute=59, second=58),
+                    job_description=CalculatorJobDescription(
+                        input1=2,
+                        input2=3,
+                        operation=MathematicalOperation.SUM
+                    )
+                ),
+                CronJobOrder(
+                    time(hour=23, minute=59, second=57),
+                    job_description=CalculatorJobDescription(
+                        input1=2,
+                        input2=3,
+                        operation=MathematicalOperation.MUL
+                    )
+                )]
+        )
+        president = President()
+        president.add_line(line_manager1, line_manager2)
+        tasks = president.get_daily_tasks()
+        self.assertTrue(len(tasks) == 3)
+        self.assertTrue(tasks[0][1].daily_run_time.second == 57)
+        self.assertTrue(tasks[1][1].daily_run_time.second == 58)
+        self.assertTrue(tasks[2][1].daily_run_time.second == 59)
