@@ -1,7 +1,7 @@
 import unittest
 import os
 import asyncio
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from dotenv import load_dotenv
 import telegram.ext
 from telegram_task.line import (
@@ -231,3 +231,47 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
                 if x[2] is None
             ]) == 3
         )
+
+    async def test_president_perform_cron_jobs(self):
+        """Test performing cron jobs on president"""
+        if datetime.now().time() > time(hour=23, minute=58):
+            return
+        line_manager1 = LineManager(
+            worker=SleepyWorker(),
+            cron_job_orders=[
+                CronJobOrder((datetime.now() + timedelta(seconds=3)).time())
+            ]
+        )
+        line_manager2 = LineManager(
+            worker=CalculatorWorker(),
+            cron_job_orders=[
+                CronJobOrder(
+                    daily_run_time=(
+                        datetime.now() + timedelta(seconds=6)
+                    ).time(),
+                    job_description=CalculatorJobDescription(
+                        input1=2,
+                        input2=3,
+                        operation=MathematicalOperation.POW
+                    )
+                ),
+                CronJobOrder(
+                    daily_run_time=time(hour=23, minute=59, second=57),
+                    job_description=CalculatorJobDescription(
+                        input1=2,
+                        input2=3,
+                        operation=MathematicalOperation.MUL
+                    )
+                )]
+        )
+        application = telegram.ext.ApplicationBuilder().proxy_url(
+            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
+        president = President(
+            telegram_app=application,
+            telegram_admin_id=TELEGRAM_CHAT_ID
+        )
+        president.add_line(line_manager1, line_manager2)
+        await president.start_operation_async(lifespan=10)
+        self.assertTrue(president.daily_cron_jobs[0][2] == True)
+        self.assertTrue(president.daily_cron_jobs[1][2] == False)
+        self.assertTrue(president.daily_cron_jobs[2][2] is None)
