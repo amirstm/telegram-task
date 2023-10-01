@@ -38,7 +38,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         president = President(
             telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
         )
-        bot_info = await president._telegram_app.bot.get_me()
+        bot_info = await president.__telegram_app.bot.get_me()
         self.assertTrue(bot_info.id)
 
     def test_president_add_lines(self):

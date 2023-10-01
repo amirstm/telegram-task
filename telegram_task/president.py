@@ -11,8 +11,13 @@ import asyncio
 import threading
 from time import sleep
 from datetime import datetime, date, time
+import pytz
 import telegram
 import telegram.ext
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 import telegram_task.line
 
 
@@ -21,16 +26,17 @@ class President:
     Manager class handles the scheduled run of workers, 
     as well as unscheduled runs commanded by the user. 
     """
-    _LOGGER = logging.getLogger(__name__)
+    _LOGGER: logging.Logger = logging.getLogger(__name__)
+    _INITIATOR_MESSAGE: str = "."
 
     def __init__(
             self,
             telegram_app: telegram.ext.Application = None,
             telegram_admin_id: int = None
     ):
-        self._telegram_app = telegram_app
-        self._telegram_admin_id = telegram_admin_id
-        self.__telegram_que: asyncio.Queue = None
+        self.__telegram_app = telegram_app
+        self.__telegram_admin_id = int(telegram_admin_id)
+        self.__telegram_que: asyncio.Queue[telegram.Update] = None
         self.__is_running: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
         self.__operation_loop: asyncio.AbstractEventLoop = None
@@ -107,28 +113,125 @@ class President:
 
     async def __init_updater(self) -> None:
         """Initiates the telegram updater and starts polling"""
-        if self._telegram_app:
+        if self.__telegram_app:
             self._LOGGER.info("Initiating telegram bot listener.")
             self.__telegram_que = asyncio.Queue()
             __updater = telegram.ext.Updater(
-                self._telegram_app.bot, update_queue=self.__telegram_que
+                self.__telegram_app.bot, update_queue=self.__telegram_que
             )
             await __updater.initialize()
             await __updater.start_polling()
-            await self._telegram_app.job_queue.start()
+            await self.__telegram_app.job_queue.start()
             self._LOGGER.info("Telegram bot has started listening.")
             await self.__telegram_listener()
             await __updater.stop()
-            await self._telegram_app.job_queue.stop()
+            await self.__telegram_app.job_queue.stop()
             self._LOGGER.info("Terminating telegram bot listener.")
 
     async def __telegram_listener(self) -> None:
         """Waiting for updates from telegram"""
         self._LOGGER.info("telegram_listener loop has started.")
+        start_time_utc = datetime.now(tz=pytz.utc)
         while self.__is_running:
-            new_update = await self.__telegram_que.get()
-            self._LOGGER.info("Update from telegram %s", new_update)
+            update = await self.__telegram_que.get()
+            self._LOGGER.info("Update from telegram %s", update)
+            if self.__is_update_valid(update):
+                if update.callback_query:
+                    self.__handle_telegram_callback(update)
+                elif update.message and update.message.date > start_time_utc:
+                    self.__handle_telegram_message(update)
+            elif update.message.chat.type == telegram.constants.ChatType.PRIVATE:
+                self.__handle_message_from_unknown(update)
         self._LOGGER.info("telegram_listener is done.")
+
+    def __handle_message_from_unknown(self, update: telegram.Update) -> None:
+        """Handles a message received from an unknown user"""
+        self.telegram_report(
+            text=f"""
+⚠️ Alert ⚠️
+Message from unknown user [{update.effective_user.id}, \
+{update.effective_user.full_name}, @{update.effective_user.username}]
+"""
+        )
+        self.__telegram_app.job_queue.run_once(
+            lambda context: context.bot.forward_message(
+                chat_id=self.__telegram_admin_id,
+                from_chat_id=update.effective_chat.id,
+                message_id=update.effective_message.message_id
+            ),
+            when=0
+        )
+
+    def __handle_telegram_callback(self, update: telegram.Update) -> None:
+        """Handle callback query from telegram admin"""
+        callback_data_splitted = update.callback_query.data.split(",")
+        match callback_data_splitted[0]:
+            case "HighFive":
+                self.__telegram_high_five(update)
+            case "DailyTaskReport":
+                self.__report_daily_tasks(do_log=False)
+            case "GotAJob":
+                self.__telegram_got_a_job(update)
+
+    def __handle_telegram_message(self, update: telegram.Update) -> None:
+        """Handle message from telegram admin"""
+        if update.message.text == self._INITIATOR_MESSAGE:
+            self.__telegram_introduction_message(update)
+
+    def __telegram_got_a_job(self, update: telegram.Update) -> None:
+        """Sends the panel so that the user chooses a new job"""
+
+    def __telegram_high_five(self, update: telegram.Update) -> None:
+        """Test method, high five on request"""
+        self.__telegram_app.job_queue.run_once(
+            lambda context: context.bot.answer_callback_query(
+                callback_query_id=update.callback_query.id,
+                text="One is glad to be of service 🙂 🙏",
+                show_alert=True
+            ),
+            when=0
+        )
+
+    def __telegram_introduction_message(self, update: telegram.Update) -> None:
+        text = f"""
+Hello <b>{update.effective_user.first_name}</b> 🙂
+How may I help you today?
+"""
+        self.__telegram_app.job_queue.run_once(
+            lambda context: context.bot.send_message(
+                chat_id=self.__telegram_admin_id,
+                text=text,
+                parse_mode=telegram.constants.ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                text="High Five 🙏",
+                                callback_data="HighFive"
+                            )
+                        ],
+                        [
+                            InlineKeyboardButton(
+                                text="Daily Task Report 📑",
+                                callback_data="DailyTaskReport"
+                            )
+                        ],
+                        [
+                            InlineKeyboardButton(
+                                text="Got A Job? 🦾",
+                                callback_data="GotAJob"
+                            )
+                        ]
+                    ]
+                )
+            ),
+            when=0
+        )
+
+    def __is_update_valid(self, update: telegram.Update) -> bool:
+        """Checks if update is from the admin chat"""
+        return update.effective_chat and \
+            int(update.effective_chat.id) == self.__telegram_admin_id
 
     async def __handle_crons(self) -> None:
         """Handling cron jobs associated with lines"""
@@ -141,7 +244,7 @@ class President:
                 len(self.daily_cron_jobs),
                 today
             )
-            self.__report_daily_tasks(daily_tasks=self.daily_cron_jobs)
+            self.__report_daily_tasks(do_log=True)
             daily_tasks = [
                 self.__convert_cron_job_to_task(job=x)
                 for x in self.daily_cron_jobs
@@ -177,23 +280,28 @@ class President:
 
     def __report_daily_tasks(
             self,
-            daily_tasks: list[tuple[
-                telegram_task.line.LineManager,
-                telegram_task.line.CronJobOrder,
-                bool
-            ]]
+            do_log: bool
     ) -> None:
         """Report daily tasks on telegram"""
+        def job_status_to_emoji(status: bool) -> str:
+            match status:
+                case True:
+                    return "✅"
+                case False:
+                    return "❌"
+                case _:
+                    return "⚙️"
         report = f"📑 Cron jobs for {datetime.now():%Y/%m/%d}:\n" + \
             "\n".join(
                 [
-                    f"⚙️ {x[0]} 🕔 {x[1].daily_run_time:%H:%M:%S}"
-                    for x in daily_tasks
+                    f"{job_status_to_emoji(x[2])} {x[0]} 🕔 {x[1].daily_run_time:%H:%M:%S}"
+                    for x in self.daily_cron_jobs
                 ]
             ) \
-            if daily_tasks \
+            if self.daily_cron_jobs \
             else f"📑 No cron jobs for {datetime.now():%Y/%m/%d}."
-        self._LOGGER.info(report)
+        if do_log:
+            self._LOGGER.info(report)
         self.telegram_report(report)
 
     def get_daily_cron_jobs(
@@ -219,12 +327,12 @@ class President:
 
     def telegram_report(self, text: str) -> None:
         """Telegram simple report making"""
-        if self._telegram_app:
-            self._telegram_app.job_queue.run_once(
+        if self.__telegram_app:
+            self.__telegram_app.job_queue.run_once(
                 lambda context: context.bot.send_message(
-                    chat_id=self._telegram_admin_id,
+                    chat_id=self.__telegram_admin_id,
                     text=text,
-                    parse_mode='html'
+                    parse_mode=telegram.constants.ParseMode.HTML
                 ),
                 when=0
             )

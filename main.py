@@ -1,13 +1,20 @@
 import os
-import asyncio
 import logging
-import time
-import threading
+from datetime import datetime, time, timedelta
 from dotenv import load_dotenv
 from logging.handlers import TimedRotatingFileHandler
 import telegram.ext
 from telegram_task.president import President
-import telegram_task
+from telegram_task.line import (
+    LineManager,
+    CronJobOrder,
+)
+from telegram_task.samples import (
+    SleepyWorker,
+    CalculatorJobDescription,
+    CalculatorWorker,
+    MathematicalOperation
+)
 from dataclasses import dataclass
 
 load_dotenv()
@@ -17,14 +24,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-def kill_president(president):
-    time.sleep(10)
-    print("Killing president")
-    president.stop_operation()
-
-
 def main():
-    logger = logging.getLogger(None)  # "telegram_task.manager")
+    logger = logging.getLogger("telegram_task")
     formatter = logging.Formatter(
         '%(asctime)s | %(name)s | %(levelname)s: %(message)s')
     logger.setLevel(logging.INFO)
@@ -44,14 +45,39 @@ def main():
     application = telegram.ext.ApplicationBuilder().proxy_url(
         PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
     president = President(
-        telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
+        telegram_app=application,
+        telegram_admin_id=TELEGRAM_CHAT_ID
     )
-    # listener_thread = threading.Thread(
-    #     target=kill_president,
-    #     args=(president,)
-    # )
-    # listener_thread.start()
-    president.start_operation(lifespan=3)
+    line_manager1 = LineManager(
+        worker=SleepyWorker(),
+        cron_job_orders=[
+            CronJobOrder((datetime.now() + timedelta(seconds=3)).time())
+        ]
+    )
+    line_manager2 = LineManager(
+        worker=CalculatorWorker(),
+        cron_job_orders=[
+            CronJobOrder(
+                daily_run_time=(
+                    datetime.now() + timedelta(seconds=6)
+                ).time(),
+                job_description=CalculatorJobDescription(
+                    input1=2,
+                    input2=3,
+                    operation=MathematicalOperation.POW
+                )
+            ),
+            CronJobOrder(
+                daily_run_time=time(hour=23, minute=59, second=57),
+                job_description=CalculatorJobDescription(
+                    input1=2,
+                    input2=3,
+                    operation=MathematicalOperation.MUL
+                )
+            )]
+    )
+    president.add_line(line_manager1, line_manager2)
+    president.start_operation()
 
 
 if __name__ == '__main__':
