@@ -51,7 +51,7 @@ class President:
     def __operation_group(self) -> Callable[[], Awaitable[bool]]:
         """Returns the group of tasks run on operation"""
         return asyncio.gather(
-            self.__init_updater(),
+            self.__telegram_listener(),
             self.__handle_crons()
         )
 
@@ -67,6 +67,7 @@ class President:
             )
             __killer_thread.start()
         try:
+            self.__operation_loop.run_until_complete(self.__init_updater())
             group = self.__operation_group()
             _ = self.__operation_loop.run_until_complete(group)
         except RuntimeError:
@@ -84,6 +85,7 @@ class President:
         )
         self.__is_running = True
         try:
+            await self.__init_updater()
             group = self.__operation_group()
             await asyncio.wait_for(group, timeout=lifespan)
         except asyncio.exceptions.TimeoutError:
@@ -114,35 +116,41 @@ class President:
     async def __init_updater(self) -> None:
         """Initiates the telegram updater and starts polling"""
         if self.__telegram_app:
-            self._LOGGER.info("Initiating telegram bot listener.")
+            self._LOGGER.info("Initiating telegram bot.")
             self.__telegram_que = asyncio.Queue()
             __updater = telegram.ext.Updater(
-                self.__telegram_app.bot, update_queue=self.__telegram_que
+                self.__telegram_app.bot,
+                update_queue=self.__telegram_que
             )
             await __updater.initialize()
             await __updater.start_polling()
             await self.__telegram_app.job_queue.start()
-            self._LOGGER.info("Telegram bot has started listening.")
-            await self.__telegram_listener()
-            await __updater.stop()
-            await self.__telegram_app.job_queue.stop()
-            self._LOGGER.info("Terminating telegram bot listener.")
+            self._LOGGER.info("Telegram bot is initiated.")
 
     async def __telegram_listener(self) -> None:
         """Waiting for updates from telegram"""
-        self._LOGGER.info("telegram_listener loop has started.")
-        start_time_utc = datetime.now(tz=pytz.utc)
-        while self.__is_running:
-            update = await self.__telegram_que.get()
-            self._LOGGER.info("Update from telegram %s", update)
-            if self.__is_update_valid(update):
-                if update.callback_query:
-                    self.__handle_telegram_callback(update)
-                elif update.message and update.message.date > start_time_utc:
-                    self.__handle_telegram_message(update)
-            elif update.message.chat.type == telegram.constants.ChatType.PRIVATE:
-                self.__handle_message_from_unknown(update)
-        self._LOGGER.info("telegram_listener is done.")
+        if self.__telegram_app:
+            self._LOGGER.info("telegram_listener loop has started.")
+            start_time_utc = datetime.now(tz=pytz.utc)
+            while self.__is_running:
+                update = await self.__telegram_que.get()
+                self._LOGGER.info("Update from telegram %s", update)
+                if self.__is_update_valid(update):
+                    try:
+                        if update.callback_query:
+                            self.__handle_telegram_callback(update)
+                        elif update.message and update.message.date > start_time_utc:
+                            self.__handle_telegram_message(update)
+                    except Exception as ex:
+                        self._LOGGER.fatal(
+                            "Exception on handling [%s]: %s",
+                            str(update),
+                            ex,
+                            exc_info=True
+                        )
+                elif update.message.chat.type == telegram.constants.ChatType.PRIVATE:
+                    self.__handle_message_from_unknown(update)
+            self._LOGGER.info("telegram_listener is done.")
 
     def __handle_message_from_unknown(self, update: telegram.Update) -> None:
         """Handles a message received from an unknown user"""
@@ -162,25 +170,47 @@ Message from unknown user [{update.effective_user.id}, \
             when=0
         )
 
-    def __handle_telegram_callback(self, update: telegram.Update) -> None:
-        """Handle callback query from telegram admin"""
-        callback_data_splitted = update.callback_query.data.split(",")
-        match callback_data_splitted[0]:
-            case "HighFive":
-                self.__telegram_high_five(update)
-            case "DailyTaskReport":
-                self.__report_daily_tasks(do_log=False)
-            case "NewJobPanel":
-                self.__telegram_new_job_panel(update)
-
     def __handle_telegram_message(self, update: telegram.Update) -> None:
         """Handle message from telegram admin"""
         if update.message.text == self._INITIATOR_MESSAGE:
             self.__telegram_introduction_message(update)
 
-    def __telegram_new_job_panel(self, update: telegram.Update) -> None:
+    def __handle_telegram_callback(self, update: telegram.Update) -> None:
+        """Handle callback query from telegram admin"""
+        callback_data_splitted = update.callback_query.data.split(",")
+        match callback_data_splitted[0]:
+            case "HighFive":
+                self.__telegram_high_five(update=update)
+            case "DailyTaskReport":
+                self.__report_daily_tasks(do_log=False)
+            case "NewJobPanel":
+                self.__telegram_new_job_panel()
+            case "SpecificNewJobPanel":
+                self.__telegram_specific_new_job_panel(
+                    callback_data=callback_data_splitted
+                )
+
+    def __telegram_specific_new_job_panel(
+            self,
+            callback_data: list[str]
+    ) -> None:
+        """
+        Sends the panel for a specific job 
+        so that the user proceeds with the new job request
+        """
+        job_name = callback_data[1]
+        line = next(
+            x
+            for x in self._lines
+            if x.display_name == job_name
+        )
+        job_order = telegram_task.line.JobOrder(
+            job_description=line.worker.default_job_description()
+        )
+
+    def __telegram_new_job_panel(self) -> None:
         """Sends the panel so that the user chooses a new job"""
-        text = f"Please choose a job 🦾\n" + "\n".join(
+        text = "Please choose a job 🦾\n" + "\n".join(
             [
                 f"{i+1}. <b>{x}</b>"
                 for i, x in enumerate(self._lines)
@@ -190,7 +220,7 @@ Message from unknown user [{update.effective_user.id}, \
             [
                 InlineKeyboardButton(
                     text=str(i * 5 + j + 1),
-                    callback_data=f"NewJob,{x.display_name}"
+                    callback_data=f"SpecificNewJobPanel,{x.display_name}"
                 )
                 for j, x in enumerate(self._lines[i:i + 5])
             ]

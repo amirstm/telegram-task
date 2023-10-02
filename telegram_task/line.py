@@ -88,8 +88,9 @@ class Worker(ABC):
     async def perform_task(self, job_description: JobDescription) -> JobReport:
         """Performs a specific task using the provided job description"""
 
+    @classmethod
     @abstractmethod
-    async def is_job_description_ok(self, job_description: JobDescription) -> bool:
+    def default_job_description(cls) -> JobDescription:
         """Checks if the provided job description is of a suitable type"""
 
 
