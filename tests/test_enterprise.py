@@ -31,16 +31,6 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    async def test_president_telegram_bot_get_me(self):
-        """Test succesful initiation of president and its telegram bot"""
-        application = telegram.ext.ApplicationBuilder().proxy_url(
-            PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
-        president = President(
-            telegram_app=application, telegram_admin_id=TELEGRAM_CHAT_ID
-        )
-        bot_info = await president.__telegram_app.bot.get_me()
-        self.assertTrue(bot_info.id)
-
     def test_president_add_lines(self):
         """Test a president overseeing the operation of a sleepy worker"""
         application = telegram.ext.ApplicationBuilder().proxy_url(

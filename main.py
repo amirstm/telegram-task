@@ -51,7 +51,7 @@ def main():
     line_manager1 = LineManager(
         worker=SleepyWorker(),
         cron_job_orders=[
-            CronJobOrder((datetime.now() + timedelta(seconds=3)).time())
+            CronJobOrder((datetime.now() + timedelta(seconds=300)).time())
         ]
     )
     line_manager2 = LineManager(
@@ -59,7 +59,7 @@ def main():
         cron_job_orders=[
             CronJobOrder(
                 daily_run_time=(
-                    datetime.now() + timedelta(seconds=6)
+                    datetime.now() + timedelta(seconds=600)
                 ).time(),
                 job_description=CalculatorJobDescription(
                     input1=2,

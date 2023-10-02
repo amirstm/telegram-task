@@ -170,16 +170,41 @@ Message from unknown user [{update.effective_user.id}, \
                 self.__telegram_high_five(update)
             case "DailyTaskReport":
                 self.__report_daily_tasks(do_log=False)
-            case "GotAJob":
-                self.__telegram_got_a_job(update)
+            case "NewJobPanel":
+                self.__telegram_new_job_panel(update)
 
     def __handle_telegram_message(self, update: telegram.Update) -> None:
         """Handle message from telegram admin"""
         if update.message.text == self._INITIATOR_MESSAGE:
             self.__telegram_introduction_message(update)
 
-    def __telegram_got_a_job(self, update: telegram.Update) -> None:
+    def __telegram_new_job_panel(self, update: telegram.Update) -> None:
         """Sends the panel so that the user chooses a new job"""
+        text = f"Please choose a job 🦾\n" + "\n".join(
+            [
+                f"{i+1}. <b>{x}</b>"
+                for i, x in enumerate(self._lines)
+            ]
+        )
+        reply_markup_buttons = [
+            [
+                InlineKeyboardButton(
+                    text=str(i * 5 + j + 1),
+                    callback_data=f"NewJob,{x.display_name}"
+                )
+                for j, x in enumerate(self._lines[i:i + 5])
+            ]
+            for i in range(0, len(self._lines), 5)
+        ]
+        self.__telegram_app.job_queue.run_once(
+            lambda context: context.bot.send_message(
+                chat_id=self.__telegram_admin_id,
+                text=text,
+                parse_mode=telegram.constants.ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(reply_markup_buttons)
+            ),
+            when=0
+        )
 
     def __telegram_high_five(self, update: telegram.Update) -> None:
         """Test method, high five on request"""
@@ -193,14 +218,13 @@ Message from unknown user [{update.effective_user.id}, \
         )
 
     def __telegram_introduction_message(self, update: telegram.Update) -> None:
-        text = f"""
-Hello <b>{update.effective_user.first_name}</b> 🙂
-How may I help you today?
-"""
         self.__telegram_app.job_queue.run_once(
             lambda context: context.bot.send_message(
                 chat_id=self.__telegram_admin_id,
-                text=text,
+                text=f"""
+Hello <b>{update.effective_user.first_name}</b> 🙂
+How may I help you today?
+""",
                 parse_mode=telegram.constants.ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -218,8 +242,8 @@ How may I help you today?
                         ],
                         [
                             InlineKeyboardButton(
-                                text="Got A Job? 🦾",
-                                callback_data="GotAJob"
+                                text="Got a Job? 🦾",
+                                callback_data="NewJobPanel"
                             )
                         ]
                     ]
