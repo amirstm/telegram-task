@@ -5,7 +5,7 @@ manage workers and their tasks.
 Telegram bot is managed by the president too.
 """
 from __future__ import annotations
-from typing import Callable, Awaitable
+from typing import Callable, Awaitable, get_type_hints
 import logging
 import asyncio
 import threading
@@ -34,8 +34,10 @@ class President:
             telegram_app: telegram.ext.Application = None,
             telegram_admin_id: int = None
     ):
-        self.__telegram_app = telegram_app
-        self.__telegram_admin_id = int(telegram_admin_id)
+        self.__telegram_app: telegram.ext.Application = telegram_app
+        self.__telegram_admin_id: int = int(
+            telegram_admin_id
+        ) if telegram_admin_id else None
         self.__telegram_que: asyncio.Queue[telegram.Update] = None
         self.__is_running: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
@@ -45,8 +47,13 @@ class President:
                 telegram_task.line.LineManager,
                 telegram_task.line.CronJobOrder,
                 bool
-            ]
-        ] = []
+            ]] = []
+        self.__new_job_panels: list[
+            tuple[
+                telegram_task.line.LineManager,
+                telegram_task.line.JobOrder,
+                telegram.Message
+            ]] = []
 
     def __operation_group(self) -> Callable[[], Awaitable[bool]]:
         """Returns the group of tasks run on operation"""
@@ -138,9 +145,9 @@ class President:
                 if self.__is_update_valid(update):
                     try:
                         if update.callback_query:
-                            self.__handle_telegram_callback(update)
+                            await self.__handle_telegram_callback(update)
                         elif update.message and update.message.date > start_time_utc:
-                            self.__handle_telegram_message(update)
+                            await self.__handle_telegram_message(update)
                     except Exception as ex:
                         self._LOGGER.fatal(
                             "Exception on handling [%s]: %s",
@@ -170,12 +177,13 @@ Message from unknown user [{update.effective_user.id}, \
             when=0
         )
 
-    def __handle_telegram_message(self, update: telegram.Update) -> None:
+    async def __handle_telegram_message(self, update: telegram.Update) -> None:
         """Handle message from telegram admin"""
         if update.message.text == self._INITIATOR_MESSAGE:
             self.__telegram_introduction_message(update)
+        await asyncio.sleep(0)
 
-    def __handle_telegram_callback(self, update: telegram.Update) -> None:
+    async def __handle_telegram_callback(self, update: telegram.Update) -> None:
         """Handle callback query from telegram admin"""
         callback_data_splitted = update.callback_query.data.split(",")
         match callback_data_splitted[0]:
@@ -186,11 +194,11 @@ Message from unknown user [{update.effective_user.id}, \
             case "NewJobPanel":
                 self.__telegram_new_job_panel()
             case "SpecificNewJobPanel":
-                self.__telegram_specific_new_job_panel(
+                await self.__telegram_specific_new_job_panel(
                     callback_data=callback_data_splitted
                 )
 
-    def __telegram_specific_new_job_panel(
+    async def __telegram_specific_new_job_panel(
             self,
             callback_data: list[str]
     ) -> None:
@@ -207,6 +215,58 @@ Message from unknown user [{update.effective_user.id}, \
         job_order = telegram_task.line.JobOrder(
             job_description=line.worker.default_job_description()
         )
+        text, inlineKeyboard = self.__telegram_specific_new_job_panel_message(
+            line_manager=line,
+            job_order=job_order
+        )
+        message = await self.__telegram_app.bot.send_message(
+            chat_id=self.__telegram_admin_id,
+            text=text,
+            parse_mode=telegram.constants.ParseMode.HTML,
+            reply_markup=inlineKeyboard
+        )
+        self.__new_job_panels.append((line, job_order, message))
+
+    def __telegram_specific_new_job_panel_message(
+            self,
+            line_manager: telegram_task.line.LineManager,
+            job_order: telegram_task.line.JobOrder
+    ) -> tuple[str, InlineKeyboardMarkup]:
+        """Returns the message text and keyboard for a specific job request"""
+        type_hints = get_type_hints(
+            job_order.job_description,
+            include_extras=False
+        ) if job_order.job_description.__dict__ else {}
+        text = f"""
+Please validate the job description for <b>{line_manager}</b> \
+📝 with code <b>{job_order.job_code}</b> 🔑
+
+""" + "\n".join(
+            [
+                f"<b>{key}</b> ({type_hints[key].__name__}) ➡️  {val}"
+                for key, val in job_order.job_description.__dict__.items()
+            ]
+        )
+        keybord_rows = [
+            [
+                InlineKeyboardButton(
+                    text=f"{key} ✏️",
+                    switch_inline_query_current_chat=f"""
+SpecificNewJobPanelUpdate {key} on job {job_order.job_code} : \
+"""
+                )
+            ]
+            for key, val in job_order.job_description.__dict__.items()
+        ]
+        keybord_rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Execute ✅",
+                    callback_data=f"ExecuteSpecificJob,{job_order.job_code}"
+                )
+            ]
+        )
+        return text, InlineKeyboardMarkup(keybord_rows)
 
     def __telegram_new_job_panel(self) -> None:
         """Sends the panel so that the user chooses a new job"""

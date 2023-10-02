@@ -35,6 +35,9 @@ class MathematicalOperation(Enum):
     DIV = "division"
     POW = "exponentiation"
 
+    def __str__(self) -> str:
+        return self.name
+
 
 @dataclass
 class CalculatorJobDescription(JobDescription):
