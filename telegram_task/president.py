@@ -6,7 +6,9 @@ Telegram bot is managed by the president too.
 """
 from __future__ import annotations
 from typing import Callable, Awaitable, get_type_hints
+from enum import Enum
 import logging
+import uuid
 import asyncio
 import threading
 from time import sleep
@@ -39,6 +41,7 @@ class President:
             telegram_admin_id
         ) if telegram_admin_id else None
         self.__telegram_que: asyncio.Queue[telegram.Update] = None
+        self.__telegram_bot_username: str = None
         self.__is_running: bool = False
         self._lines: list[telegram_task.line.LineManager] = []
         self.__operation_loop: asyncio.AbstractEventLoop = None
@@ -148,6 +151,14 @@ class President:
                             await self.__handle_telegram_callback(update)
                         elif update.message and update.message.date > start_time_utc:
                             await self.__handle_telegram_message(update)
+                    except ValueError:
+                        self._LOGGER.error(
+                            "ValueError: exception on converting input."
+                        )
+                    except KeyError:
+                        self._LOGGER.error(
+                            "KeyError: exception on converting input."
+                        )
                     except Exception as ex:
                         self._LOGGER.fatal(
                             "Exception on handling [%s]: %s",
@@ -179,9 +190,22 @@ Message from unknown user [{update.effective_user.id}, \
 
     async def __handle_telegram_message(self, update: telegram.Update) -> None:
         """Handle message from telegram admin"""
-        if update.message.text == self._INITIATOR_MESSAGE:
-            self.__telegram_introduction_message(update)
-        await asyncio.sleep(0)
+        message_splitted = update.message.text.split(" ")
+        match message_splitted[0]:
+            case self._INITIATOR_MESSAGE:
+                self.__telegram_introduction_message(update)
+            case _:
+                if message_splitted[0] == "@" + await self.__get_telegram_bot_username():
+                    await self.__handle_telegram_inline_query(message_splitted)
+
+    async def __handle_telegram_inline_query(self, message_splitted: list[str]) -> None:
+        """Handle inline query from telegram admin"""
+        if len(message_splitted) > 1:
+            match message_splitted[1]:
+                case "SpecificNewJobPanelUpdate":
+                    await self.__telegram_specific_new_job_panel_update(
+                        message_splitted=message_splitted
+                    )
 
     async def __handle_telegram_callback(self, update: telegram.Update) -> None:
         """Handle callback query from telegram admin"""
@@ -197,6 +221,54 @@ Message from unknown user [{update.effective_user.id}, \
                 await self.__telegram_specific_new_job_panel(
                     callback_data=callback_data_splitted
                 )
+
+    async def __telegram_specific_new_job_panel_update(self, message_splitted: list[str]) -> None:
+        """Updates some parameter in the new job panel"""
+        if len(message_splitted) > 7:
+            property_name = message_splitted[2]
+            job_code = uuid.UUID(hex=message_splitted[5])
+            new_value_str = message_splitted[7]
+            job_panel = next(
+                x
+                for x in self.__new_job_panels
+                if x[1].job_code == job_code
+            )
+            property_type = get_type_hints(
+                job_panel[1].job_description
+            )[property_name]
+            job_panel[1].job_description.__dict__[
+                property_name
+            ] = self.__convert_str_to_type(
+                raw_val=new_value_str,
+                to_type=property_type
+            )
+            text, inline_keyboard = self.__telegram_specific_new_job_panel_message(
+                line_manager=job_panel[0],
+                job_order=job_panel[1]
+            )
+            message = await self.__telegram_app.bot.edit_message_text(
+                chat_id=self.__telegram_admin_id,
+                message_id=job_panel[2].id,
+                text=text,
+                parse_mode=telegram.constants.ParseMode.HTML,
+                reply_markup=inline_keyboard
+            )
+            self.__new_job_panels.remove(job_panel)
+            self.__new_job_panels.append((
+                job_panel[0],
+                job_panel[1],
+                message
+            ))
+
+    def __convert_str_to_type(self, raw_val: str, to_type: type) -> type.__name__:
+        """Converts string to the given type"""
+        if to_type in [int, float, str]:
+            return to_type(raw_val)
+        if to_type == bool:
+            return raw_val.lower() in ["true", "1", "y"]
+        if issubclass(to_type, Enum):
+            return to_type[raw_val]
+        raise ValueError
 
     async def __telegram_specific_new_job_panel(
             self,
@@ -215,7 +287,7 @@ Message from unknown user [{update.effective_user.id}, \
         job_order = telegram_task.line.JobOrder(
             job_description=line.worker.default_job_description()
         )
-        text, inlineKeyboard = self.__telegram_specific_new_job_panel_message(
+        text, inline_keyboard = self.__telegram_specific_new_job_panel_message(
             line_manager=line,
             job_order=job_order
         )
@@ -223,7 +295,7 @@ Message from unknown user [{update.effective_user.id}, \
             chat_id=self.__telegram_admin_id,
             text=text,
             parse_mode=telegram.constants.ParseMode.HTML,
-            reply_markup=inlineKeyboard
+            reply_markup=inline_keyboard
         )
         self.__new_job_panels.append((line, job_order, message))
 
@@ -251,9 +323,8 @@ Please validate the job description for <b>{line_manager}</b> \
             [
                 InlineKeyboardButton(
                     text=f"{key} ✏️",
-                    switch_inline_query_current_chat=f"""
-SpecificNewJobPanelUpdate {key} on job {job_order.job_code} : \
-"""
+                    switch_inline_query_current_chat=f"SpecificNewJobPanelUpdate {key} "
+                    + f"on job {job_order.job_code} : "
                 )
             ]
             for key, val in job_order.job_description.__dict__.items()
@@ -341,6 +412,15 @@ How may I help you today?
             ),
             when=0
         )
+
+    async def __get_telegram_bot_username(self) -> str:
+        """Returns the telegram bot username, either from memory or by fetching"""
+        if self.__telegram_bot_username:
+            return self.__telegram_bot_username
+        self.__telegram_bot_username = (await
+                                        self.__telegram_app.bot.get_me()
+                                        ).username
+        return self.__telegram_bot_username
 
     def __is_update_valid(self, update: telegram.Update) -> bool:
         """Checks if update is from the admin chat"""
