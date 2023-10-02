@@ -43,14 +43,14 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
             LineManager(worker=SleepyWorker()),
             LineManager(worker=CalculatorWorker()),
         )
-        print(president._lines)
+        print(president.lines)
         self.assertTrue(
             any((
-                x for x in president._lines if isinstance(x.worker, SleepyWorker) and x.display_name == SleepyWorker.__name__
+                x for x in president.lines if isinstance(x.worker, SleepyWorker) and x.display_name == SleepyWorker.__name__
             )))
         self.assertTrue(
             any((
-                x for x in president._lines if isinstance(x.worker, CalculatorWorker) and x.display_name == CalculatorWorker.__name__
+                x for x in president.lines if isinstance(x.worker, CalculatorWorker) and x.display_name == CalculatorWorker.__name__
             )))
 
     def test_president_operation_synchronous(self):

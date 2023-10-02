@@ -23,34 +23,27 @@ from telegram import (
 import telegram_task.line
 
 
-class President:
+class TelegramDeputy:
     """
-    Manager class handles the scheduled run of workers, 
-    as well as unscheduled runs commanded by the user. 
+    Takes over all the president's tasks 
+    that are related to telegram
     """
     _LOGGER: logging.Logger = logging.getLogger(__name__)
     _INITIATOR_MESSAGE: str = "."
 
     def __init__(
             self,
+            president: President,
             telegram_app: telegram.ext.Application = None,
-            telegram_admin_id: int = None
+            telegram_admin_id: int = None,
     ):
+        self.president: President = president
         self.__telegram_app: telegram.ext.Application = telegram_app
         self.__telegram_admin_id: int = int(
             telegram_admin_id
         ) if telegram_admin_id else None
         self.__telegram_que: asyncio.Queue[telegram.Update] = None
         self.__telegram_bot_username: str = None
-        self.__is_running: bool = False
-        self._lines: list[telegram_task.line.LineManager] = []
-        self.__operation_loop: asyncio.AbstractEventLoop = None
-        self.daily_cron_jobs: list[
-            tuple[
-                telegram_task.line.LineManager,
-                telegram_task.line.CronJobOrder,
-                bool
-            ]] = []
         self.__new_job_panels: list[
             tuple[
                 telegram_task.line.LineManager,
@@ -58,72 +51,7 @@ class President:
                 telegram.Message
             ]] = []
 
-    def __operation_group(self) -> Callable[[], Awaitable[bool]]:
-        """Returns the group of tasks run on operation"""
-        return asyncio.gather(
-            self.__telegram_listener(),
-            self.__handle_crons()
-        )
-
-    def start_operation(self, lifespan: int = 0) -> None:
-        """Start the operation of the enterprise after full initiation"""
-        self._LOGGER.info("President is starting the operation.")
-        self.__is_running = True
-        self.__operation_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.__operation_loop)
-        if lifespan > 0:
-            __killer_thread = threading.Thread(
-                target=self.__automatic_killer, args=(lifespan,)
-            )
-            __killer_thread.start()
-        try:
-            self.__operation_loop.run_until_complete(self.__init_updater())
-            group = self.__operation_group()
-            _ = self.__operation_loop.run_until_complete(group)
-        except RuntimeError:
-            self._LOGGER.info("Telegram bot listener is terminated.")
-        except Exception as ex:
-            self._LOGGER.error(ex, exc_info=True)
-            self._LOGGER.info(
-                "Telegram bot listener is terminated in an improper manner."
-            )
-
-    async def start_operation_async(self, lifespan: int = 0) -> None:
-        """Start the operation of the enterprise after full initiation"""
-        self._LOGGER.info(
-            "President is starting the operation asynchronously."
-        )
-        self.__is_running = True
-        try:
-            await self.__init_updater()
-            group = self.__operation_group()
-            await asyncio.wait_for(group, timeout=lifespan)
-        except asyncio.exceptions.TimeoutError:
-            self.__is_running = False
-            self._LOGGER.info("Telegram bot listener is terminated.")
-        except Exception as ex:
-            self._LOGGER.error(ex, exc_info=True)
-            self._LOGGER.info(
-                "Telegram bot listener is terminated in an improper manner."
-            )
-
-    def __automatic_killer(self, lifespan) -> None:
-        """Method used for setting an automatic lifespan for operation"""
-        self._LOGGER.info(
-            "Automatic killer is set to stop operation after %d seconds.",
-            lifespan
-        )
-        sleep(lifespan)
-        self._LOGGER.info("Automatic killer is killing the operation.")
-        self.stop_operation()
-
-    def stop_operation(self) -> None:
-        """Stop the enterprise operation"""
-        self._LOGGER.info("President is stopping the operation.")
-        self.__is_running = False
-        self.__operation_loop.stop()
-
-    async def __init_updater(self) -> None:
+    async def init_updater(self) -> None:
         """Initiates the telegram updater and starts polling"""
         if self.__telegram_app:
             self._LOGGER.info("Initiating telegram bot.")
@@ -137,12 +65,12 @@ class President:
             await self.__telegram_app.job_queue.start()
             self._LOGGER.info("Telegram bot is initiated.")
 
-    async def __telegram_listener(self) -> None:
+    async def telegram_listener(self) -> None:
         """Waiting for updates from telegram"""
         if self.__telegram_app:
             self._LOGGER.info("telegram_listener loop has started.")
             start_time_utc = datetime.now(tz=pytz.utc)
-            while self.__is_running:
+            while self.president.is_running:
                 update = await self.__telegram_que.get()
                 self._LOGGER.info("Update from telegram %s", update)
                 if self.__is_update_valid(update):
@@ -169,6 +97,18 @@ class President:
                 elif update.message.chat.type == telegram.constants.ChatType.PRIVATE:
                     self.__handle_message_from_unknown(update)
             self._LOGGER.info("telegram_listener is done.")
+
+    def telegram_report(self, text: str) -> None:
+        """Telegram simple report making"""
+        if self.__telegram_app:
+            self.__telegram_app.job_queue.run_once(
+                lambda context: context.bot.send_message(
+                    chat_id=self.__telegram_admin_id,
+                    text=text,
+                    parse_mode=telegram.constants.ParseMode.HTML
+                ),
+                when=0
+            )
 
     def __handle_message_from_unknown(self, update: telegram.Update) -> None:
         """Handles a message received from an unknown user"""
@@ -214,7 +154,7 @@ Message from unknown user [{update.effective_user.id}, \
             case "HighFive":
                 self.__telegram_high_five(update=update)
             case "DailyTaskReport":
-                self.__report_daily_tasks(do_log=False)
+                self.report_daily_tasks(do_log=False)
             case "NewJobPanel":
                 self.__telegram_new_job_panel()
             case "SpecificNewJobPanel":
@@ -281,7 +221,7 @@ Message from unknown user [{update.effective_user.id}, \
         job_name = callback_data[1]
         line = next(
             x
-            for x in self._lines
+            for x in self.president.lines
             if x.display_name == job_name
         )
         job_order = telegram_task.line.JobOrder(
@@ -344,7 +284,7 @@ Please validate the job description for <b>{line_manager}</b> \
         text = "Please choose a job 🦾\n" + "\n".join(
             [
                 f"{i+1}. <b>{x}</b>"
-                for i, x in enumerate(self._lines)
+                for i, x in enumerate(self.president.lines)
             ]
         )
         reply_markup_buttons = [
@@ -353,9 +293,9 @@ Please validate the job description for <b>{line_manager}</b> \
                     text=str(i * 5 + j + 1),
                     callback_data=f"SpecificNewJobPanel,{x.display_name}"
                 )
-                for j, x in enumerate(self._lines[i:i + 5])
+                for j, x in enumerate(self.president.lines[i:i + 5])
             ]
-            for i in range(0, len(self._lines), 5)
+            for i in range(0, len(self.president.lines), 5)
         ]
         self.__telegram_app.job_queue.run_once(
             lambda context: context.bot.send_message(
@@ -427,10 +367,131 @@ How may I help you today?
         return update.effective_chat and \
             int(update.effective_chat.id) == self.__telegram_admin_id
 
+    def report_daily_tasks(
+            self,
+            do_log: bool
+    ) -> None:
+        """Report daily tasks on telegram"""
+        def job_status_to_emoji(status: bool) -> str:
+            match status:
+                case True:
+                    return "✅"
+                case False:
+                    return "❌"
+                case _:
+                    return "⚙️"
+        report = f"📑 Cron jobs for {datetime.now():%Y/%m/%d}:\n" + \
+            "\n".join(
+                [
+                    f"{job_status_to_emoji(x[2])} {x[0]} 🕔 {x[1].daily_run_time:%H:%M:%S}"
+                    for x in self.president.daily_cron_jobs
+                ]
+            ) \
+            if self.president.daily_cron_jobs \
+            else f"📑 No cron jobs for {datetime.now():%Y/%m/%d}."
+        if do_log:
+            self._LOGGER.info(report)
+        self.telegram_report(report)
+
+
+class President:
+    """
+    President class handles the scheduled run of workers, 
+    as well as unscheduled runs commanded by the user. 
+    """
+    _LOGGER: logging.Logger = logging.getLogger(__name__)
+
+    def __init__(
+            self,
+            telegram_app: telegram.ext.Application = None,
+            telegram_admin_id: int = None
+    ):
+        self.__telegram_deputy: TelegramDeputy = TelegramDeputy(
+            telegram_app=telegram_app,
+            telegram_admin_id=telegram_admin_id,
+            president=self
+        ) if telegram_app else None
+        self.is_running: bool = False
+        self.lines: list[telegram_task.line.LineManager] = []
+        self.__operation_loop: asyncio.AbstractEventLoop = None
+        self.daily_cron_jobs: list[
+            tuple[
+                telegram_task.line.LineManager,
+                telegram_task.line.CronJobOrder,
+                bool
+            ]] = []
+
+    def __operation_group(self) -> Callable[[], Awaitable[bool]]:
+        """Returns the group of tasks run on operation"""
+        return asyncio.gather(
+            self.__telegram_deputy.telegram_listener(),
+            self.__handle_crons()
+        )
+
+    def start_operation(self, lifespan: int = 0) -> None:
+        """Start the operation of the enterprise after full initiation"""
+        self._LOGGER.info("President is starting the operation.")
+        self.is_running = True
+        self.__operation_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.__operation_loop)
+        if lifespan > 0:
+            __killer_thread = threading.Thread(
+                target=self.__automatic_killer, args=(lifespan,)
+            )
+            __killer_thread.start()
+        try:
+            self.__operation_loop.run_until_complete(
+                self.__telegram_deputy.init_updater()
+            )
+            group = self.__operation_group()
+            _ = self.__operation_loop.run_until_complete(group)
+        except RuntimeError:
+            self._LOGGER.info("Telegram bot listener is terminated.")
+        except Exception as ex:
+            self._LOGGER.error(ex, exc_info=True)
+            self._LOGGER.info(
+                "Telegram bot listener is terminated in an improper manner."
+            )
+
+    async def start_operation_async(self, lifespan: int = 0) -> None:
+        """Start the operation of the enterprise after full initiation"""
+        self._LOGGER.info(
+            "President is starting the operation asynchronously."
+        )
+        self.is_running = True
+        try:
+            await self.__telegram_deputy.init_updater()
+            group = self.__operation_group()
+            await asyncio.wait_for(group, timeout=lifespan)
+        except asyncio.exceptions.TimeoutError:
+            self.is_running = False
+            self._LOGGER.info("Telegram bot listener is terminated.")
+        except Exception as ex:
+            self._LOGGER.error(ex, exc_info=True)
+            self._LOGGER.info(
+                "Telegram bot listener is terminated in an improper manner."
+            )
+
+    def __automatic_killer(self, lifespan) -> None:
+        """Method used for setting an automatic lifespan for operation"""
+        self._LOGGER.info(
+            "Automatic killer is set to stop operation after %d seconds.",
+            lifespan
+        )
+        sleep(lifespan)
+        self._LOGGER.info("Automatic killer is killing the operation.")
+        self.stop_operation()
+
+    def stop_operation(self) -> None:
+        """Stop the enterprise operation"""
+        self._LOGGER.info("President is stopping the operation.")
+        self.is_running = False
+        self.__operation_loop.stop()
+
     async def __handle_crons(self) -> None:
         """Handling cron jobs associated with lines"""
         self._LOGGER.info("Handling cron jobs has started.")
-        while self.__is_running:
+        while self.is_running:
             today = date.today()
             self.daily_cron_jobs = self.get_daily_cron_jobs()
             self._LOGGER.info(
@@ -438,7 +499,7 @@ How may I help you today?
                 len(self.daily_cron_jobs),
                 today
             )
-            self.__report_daily_tasks(do_log=True)
+            self.__telegram_deputy.report_daily_tasks(do_log=True)
             daily_tasks = [
                 self.__convert_cron_job_to_task(job=x)
                 for x in self.daily_cron_jobs
@@ -472,32 +533,6 @@ How may I help you today?
             await asyncio.sleep(time_to_sleep)
         job[2] = await job[0].perform_task(job_order=job[1], president=self)
 
-    def __report_daily_tasks(
-            self,
-            do_log: bool
-    ) -> None:
-        """Report daily tasks on telegram"""
-        def job_status_to_emoji(status: bool) -> str:
-            match status:
-                case True:
-                    return "✅"
-                case False:
-                    return "❌"
-                case _:
-                    return "⚙️"
-        report = f"📑 Cron jobs for {datetime.now():%Y/%m/%d}:\n" + \
-            "\n".join(
-                [
-                    f"{job_status_to_emoji(x[2])} {x[0]} 🕔 {x[1].daily_run_time:%H:%M:%S}"
-                    for x in self.daily_cron_jobs
-                ]
-            ) \
-            if self.daily_cron_jobs \
-            else f"📑 No cron jobs for {datetime.now():%Y/%m/%d}."
-        if do_log:
-            self._LOGGER.info(report)
-        self.telegram_report(report)
-
     def get_daily_cron_jobs(
             self
     ) -> list[tuple[
@@ -510,23 +545,16 @@ How may I help you today?
         now_time = now_datetime.time()
         weekday = now_datetime.weekday()
         return sorted([
-            [x, y, None] for x in self._lines
+            [x, y, None] for x in self.lines
             for y in x.cron_job_orders
             if weekday not in y.off_days and y.daily_run_time > now_time
         ], key=lambda x: x[1].daily_run_time)
 
     def add_line(self, *args: telegram_task.line.LineManager) -> None:
         """Add new line managers to the enterprise"""
-        self._lines.extend(args)
+        self.lines.extend(args)
 
     def telegram_report(self, text: str) -> None:
         """Telegram simple report making"""
-        if self.__telegram_app:
-            self.__telegram_app.job_queue.run_once(
-                lambda context: context.bot.send_message(
-                    chat_id=self.__telegram_admin_id,
-                    text=text,
-                    parse_mode=telegram.constants.ParseMode.HTML
-                ),
-                when=0
-            )
+        if self.__telegram_deputy:
+            self.__telegram_deputy.telegram_report(text=text)
