@@ -162,11 +162,11 @@ Message from unknown user [{update.effective_user.id}, \
                     callback_data=callback_data_splitted
                 )
             case "ExecuteSpecificNewJob":
-                self.__telegram_execute_specific_new_job(
+                await self.__telegram_execute_specific_new_job(
                     callback_data=callback_data_splitted
                 )
 
-    def __telegram_execute_specific_new_job(
+    async def __telegram_execute_specific_new_job(
             self,
             callback_data: list[str]
     ) -> None:
@@ -178,6 +178,16 @@ Message from unknown user [{update.effective_user.id}, \
                 x
                 for x in self.__new_job_panels
                 if x[1].job_code == job_code
+            )
+            text, _ = self.__telegram_specific_new_job_panel_message(
+                line_manager=job_panel[0],
+                job_order=job_panel[1]
+            )
+            await self.__telegram_app.bot.edit_message_text(
+                chat_id=self.__telegram_admin_id,
+                message_id=job_panel[2].id,
+                text=f"{text}\n\nRoger that 🦾✅",
+                parse_mode=telegram.constants.ParseMode.HTML,
             )
             self.__new_job_panels.remove(job_panel)
             asyncio.create_task(
