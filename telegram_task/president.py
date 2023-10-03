@@ -76,7 +76,7 @@ class TelegramDeputy:
                 if self.__is_update_valid(update):
                     try:
                         if update.callback_query:
-                            await self.__handle_telegram_callback(update)
+                            await self.__handle_telegram_callback_query(update)
                         elif update.message and update.message.date > start_time_utc:
                             await self.__handle_telegram_message(update)
                     except ValueError:
@@ -147,7 +147,7 @@ Message from unknown user [{update.effective_user.id}, \
                         message_splitted=message_splitted
                     )
 
-    async def __handle_telegram_callback(self, update: telegram.Update) -> None:
+    async def __handle_telegram_callback_query(self, update: telegram.Update) -> None:
         """Handle callback query from telegram admin"""
         callback_data_splitted = update.callback_query.data.split(",")
         match callback_data_splitted[0]:
@@ -161,6 +161,30 @@ Message from unknown user [{update.effective_user.id}, \
                 await self.__telegram_specific_new_job_panel(
                     callback_data=callback_data_splitted
                 )
+            case "ExecuteSpecificNewJob":
+                self.__telegram_execute_specific_new_job(
+                    callback_data=callback_data_splitted
+                )
+
+    def __telegram_execute_specific_new_job(
+            self,
+            callback_data: list[str]
+    ) -> None:
+        """Executes the new job from its specifications"""
+        if len(callback_data) > 1:
+            job_code = uuid.UUID(callback_data[1])
+            print(job_code)
+            job_panel = next(
+                x
+                for x in self.__new_job_panels
+                if x[1].job_code == job_code
+            )
+            self.__new_job_panels.remove(job_panel)
+            asyncio.create_task(
+                job_panel[0].perform_task(
+                    job_order=job_panel[1],
+                    president=self.president
+                ))
 
     async def __telegram_specific_new_job_panel_update(self, message_splitted: list[str]) -> None:
         """Updates some parameter in the new job panel"""
@@ -273,7 +297,7 @@ Please validate the job description for <b>{line_manager}</b> \
             [
                 InlineKeyboardButton(
                     text="Execute ✅",
-                    callback_data=f"ExecuteSpecificJob,{job_order.job_code}"
+                    callback_data=f"ExecuteSpecificNewJob,{job_order.job_code}"
                 )
             ]
         )
