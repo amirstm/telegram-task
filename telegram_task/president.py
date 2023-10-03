@@ -33,11 +33,10 @@ class TelegramDeputy:
 
     def __init__(
             self,
-            president: President,
             telegram_app: telegram.ext.Application = None,
             telegram_admin_id: int = None,
     ):
-        self.president: President = president
+        self.president: President = None
         self.__telegram_app: telegram.ext.Application = telegram_app
         self.__telegram_admin_id: int = int(
             telegram_admin_id
@@ -437,14 +436,11 @@ class President:
 
     def __init__(
             self,
-            telegram_app: telegram.ext.Application = None,
-            telegram_admin_id: int = None
+            telegram_deputy: TelegramDeputy = None
     ):
-        self.__telegram_deputy: TelegramDeputy = TelegramDeputy(
-            telegram_app=telegram_app,
-            telegram_admin_id=telegram_admin_id,
-            president=self
-        ) if telegram_app else None
+        self.__telegram_deputy: TelegramDeputy = telegram_deputy
+        if self.__telegram_deputy:
+            self.__telegram_deputy.president = self
         self.is_running: bool = False
         self.lines: list[telegram_task.line.LineManager] = []
         self.__operation_loop: asyncio.AbstractEventLoop = None

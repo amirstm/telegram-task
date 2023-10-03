@@ -10,7 +10,10 @@ from telegram_task.line import (
     JobOrder,
     CronJobOrder
 )
-from telegram_task.president import President
+from telegram_task.president import (
+    President,
+    TelegramDeputy
+)
 from telegram_task.samples import (
     SleepyWorker,
     MathematicalOperation,
@@ -36,9 +39,10 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
+            telegram_deputy=TelegramDeputy(
+                telegram_app=application,
+                telegram_admin_id=TELEGRAM_CHAT_ID
+            ))
         president.add_line(
             LineManager(worker=SleepyWorker()),
             LineManager(worker=CalculatorWorker()),
@@ -57,9 +61,10 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
+            telegram_deputy=TelegramDeputy(
+                telegram_app=application,
+                telegram_admin_id=TELEGRAM_CHAT_ID
+            ))
         president.start_operation(lifespan=1)
 
     async def run_job(self, president: President, line_manager: LineManager, job_description: JobDescription) -> bool:
@@ -73,9 +78,10 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
+            telegram_deputy=TelegramDeputy(
+                telegram_app=application,
+                telegram_admin_id=TELEGRAM_CHAT_ID
+            ))
         line_manager = LineManager(worker=SleepyWorker())
         president.add_line(
             line_manager,
@@ -107,9 +113,10 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
+            telegram_deputy=TelegramDeputy(
+                telegram_app=application,
+                telegram_admin_id=TELEGRAM_CHAT_ID
+            ))
         line_manager1 = LineManager(worker=SleepyWorker())
         line_manager2 = LineManager(worker=CalculatorWorker())
         president.add_line(
@@ -209,9 +216,10 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
+            telegram_deputy=TelegramDeputy(
+                telegram_app=application,
+                telegram_admin_id=TELEGRAM_CHAT_ID
+            ))
         president.add_line(line_manager1, line_manager2)
         await president.start_operation_async(lifespan=3)
         self.assertTrue(
@@ -257,9 +265,10 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
-            telegram_app=application,
-            telegram_admin_id=TELEGRAM_CHAT_ID
-        )
+            telegram_deputy=TelegramDeputy(
+                telegram_app=application,
+                telegram_admin_id=TELEGRAM_CHAT_ID
+            ))
         president.add_line(line_manager1, line_manager2)
         await president.start_operation_async(lifespan=10)
         self.assertTrue(president.daily_cron_jobs[0][2] == True)

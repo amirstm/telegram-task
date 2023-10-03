@@ -4,7 +4,7 @@ from datetime import datetime, time, timedelta
 from dotenv import load_dotenv
 from logging.handlers import TimedRotatingFileHandler
 import telegram.ext
-from telegram_task.president import President
+from telegram_task.president import President, TelegramDeputy
 from telegram_task.line import (
     LineManager,
     CronJobOrder,
@@ -45,9 +45,10 @@ def main():
     application = telegram.ext.ApplicationBuilder().proxy_url(
         PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
     president = President(
-        telegram_app=application,
-        telegram_admin_id=TELEGRAM_CHAT_ID
-    )
+        telegram_deputy=TelegramDeputy(
+            telegram_app=application,
+            telegram_admin_id=TELEGRAM_CHAT_ID
+        ))
     line_manager1 = LineManager(
         worker=SleepyWorker(),
         cron_job_orders=[
