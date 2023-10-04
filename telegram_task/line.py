@@ -1,5 +1,6 @@
 """This module contains the outline for workers and jobs/tasks"""
 from __future__ import annotations
+from typing import Callable
 import logging
 import uuid
 from datetime import datetime, time
@@ -118,7 +119,7 @@ class LineManager:
     async def perform_task(
         self,
         job_order: JobOrder,
-        reporter: callable[[str], None] = None
+        reporter: Callable[[str], None] = None
     ) -> bool:
         """Handles the execution of a specific task using the provided job order"""
         self.__handle_job_start(
@@ -143,7 +144,7 @@ class LineManager:
     def __handle_job_start(
         self,
         job_code: uuid.UUID,
-        reporter: callable[[str], None] = None
+        reporter: Callable[[str], None] = None
     ) -> None:
         """Handle the initiation of a job/task"""
         self._LOGGER.info(
@@ -160,7 +161,7 @@ class LineManager:
         self,
         job_code: uuid.UUID,
         report: JobReport,
-        reporter: callable[[str], None] = None
+        reporter: Callable[[str], None] = None
     ) -> None:
         """Handle report from a completed job/task"""
         self.__handle_job_warnings(
@@ -182,7 +183,7 @@ class LineManager:
             self,
             job_code: uuid.UUID,
             warnings: list[str],
-        reporter: callable[[str], None] = None
+        reporter: Callable[[str], None] = None
     ) -> None:
         """Handle a completed job/task's warnings, if any"""
         if warnings:
@@ -201,7 +202,7 @@ class LineManager:
         self,
         job_code: uuid.UUID,
         exception: TaskException,
-        reporter: callable[[str], None] = None
+        reporter: Callable[[str], None] = None
     ) -> None:
         """Handle familiar task exception"""
         self._LOGGER.error("Job [%s] hit exception: %s",
@@ -217,7 +218,7 @@ class LineManager:
             self,
             job_code: uuid.UUID,
             exception: Exception,
-        reporter: callable[[str], None] = None
+        reporter: Callable[[str], None] = None
     ) -> None:
         """Handle unfamiliar exception raised while performing a task"""
         self._LOGGER.fatal(
