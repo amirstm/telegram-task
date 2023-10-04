@@ -70,7 +70,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
     async def run_job(self, president: President, line_manager: LineManager, job_description: JobDescription) -> bool:
         return await line_manager.perform_task(
             job_order=JobOrder(job_description=job_description),
-            president=president
+            reporter=president.telegram_report
         )
 
     async def test_president_perform_single_job(self):
@@ -102,7 +102,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         for line_manager, job_description in jobs:
             result = await line_manager.perform_task(
                 job_order=JobOrder(job_description=job_description),
-                president=president
+                reporter=president.telegram_report
             )
             await asyncio.sleep(2)
             results.append(result)

@@ -5,7 +5,6 @@ import uuid
 from datetime import datetime, time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import telegram_task.president
 
 
 @dataclass
@@ -117,77 +116,73 @@ class LineManager:
         return self.display_name
 
     async def perform_task(
-            self,
-            job_order: JobOrder,
-            president: telegram_task.president.President = None
+        self,
+        job_order: JobOrder,
+        reporter: callable[[str], None] = None
     ) -> bool:
         """Handles the execution of a specific task using the provided job order"""
         self.__handle_job_start(
-            job_order.job_code, president
+            job_order.job_code, reporter
         )
         try:
             report = await self.worker.perform_task(job_description=job_order.job_description)
             self.__handle_job_report(
-                job_order.job_code, report, president
+                job_order.job_code, report, reporter
             )
             return True
         except TaskException as exception:
             self.__handle_task_exception(
-                job_order.job_code, exception, president
+                job_order.job_code, exception, reporter
             )
         except Exception as exception:
             self.__handle_unfamiliar_exception(
-                job_order.job_code, exception, president
+                job_order.job_code, exception, reporter
             )
         return False
-
-    def __telegram_report(self, president: telegram_task.president.President, text: str) -> None:
-        if president:
-            president.telegram_report(text=text)
 
     def __handle_job_start(
         self,
         job_code: uuid.UUID,
-        president: telegram_task.president.President = None
+        reporter: callable[[str], None] = None
     ) -> None:
         """Handle the initiation of a job/task"""
         self._LOGGER.info(
             "Starting to manage the job [%s]", {job_code}
         )
-        self.__telegram_report(
-            president=president,
-            text=f"""
+        if reporter:
+            reporter(
+                text=f"""
 ⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now():%Y/%m/%d %H:%M:%S}</b>.
 """
-        )
+            )
 
     def __handle_job_report(
-            self,
-            job_code: uuid.UUID,
-            report: JobReport,
-            president: telegram_task.president.President = None
+        self,
+        job_code: uuid.UUID,
+        report: JobReport,
+        reporter: callable[[str], None] = None
     ) -> None:
         """Handle report from a completed job/task"""
         self.__handle_job_warnings(
-            job_code=job_code, warnings=report.warnings, president=president
+            job_code=job_code, warnings=report.warnings, reporter=reporter
         )
         information = "\n" + \
             "\n".join(report.information) if report.information else ""
         self._LOGGER.info(
             "Job [%s] is complete:%s", job_code, information
         )
-        self.__telegram_report(
-            president=president,
-            text=f"""
+        if reporter:
+            reporter(
+                text=f"""
 ✅ <b>{self}</b> on job <b>{job_code}</b> is done.{information}
 """
-        )
+            )
 
     def __handle_job_warnings(
             self,
             job_code: uuid.UUID,
             warnings: list[str],
-            president: telegram_task.president.President = None
+        reporter: callable[[str], None] = None
     ) -> None:
         """Handle a completed job/task's warnings, if any"""
         if warnings:
@@ -195,41 +190,45 @@ class LineManager:
             self._LOGGER.error(
                 "Job [%s] raised some warnings:\n%s", job_code, warnings_agg
             )
-            self.__telegram_report(
-                president=president,
-                text=f"""
+            if reporter:
+                reporter(
+                    text=f"""
 ⚠️ <b>{self}</b> on job <b>{job_code}</b> raised some warnings. Check the logs for more details.
 """
-            )
+                )
 
     def __handle_task_exception(
-            self,
-            job_code: uuid.UUID,
-            exception: TaskException,
-            president: telegram_task.president.President = None
+        self,
+        job_code: uuid.UUID,
+        exception: TaskException,
+        reporter: callable[[str], None] = None
     ) -> None:
         """Handle familiar task exception"""
         self._LOGGER.error("Job [%s] hit exception: %s",
                            job_code, exception.__traceback__)
-        self.__telegram_report(
-            president=president,
-            text=f"""
+        if reporter:
+            reporter(
+                text=f"""
 ❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException. Check the logs for more details.
 """
-        )
+            )
 
     def __handle_unfamiliar_exception(
             self,
             job_code: uuid.UUID,
             exception: Exception,
-            president: telegram_task.president.President = None
+        reporter: callable[[str], None] = None
     ) -> None:
         """Handle unfamiliar exception raised while performing a task"""
-        self._LOGGER.fatal("Job [%s] hit exception: %s",
-                           job_code, exception.__traceback__)
-        self.__telegram_report(
-            president=president,
-            text=f"""
+        self._LOGGER.fatal(
+            "Job [%s] hit exception: %s",
+            job_code,
+            exception,
+            exc_info=True
+        )
+        if reporter:
+            reporter(
+                text=f"""
 ☠️ <b>{self}</b> on job <b>{job_code}</b> hit an unfamiliar exception. Check the logs for more details.
 """
-        )
+            )

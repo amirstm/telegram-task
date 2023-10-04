@@ -192,7 +192,7 @@ Message from unknown user [{update.effective_user.id}, \
             asyncio.create_task(
                 job_panel[0].perform_task(
                     job_order=job_panel[1],
-                    president=self.president
+                    reporter=self.telegram_report
                 ))
 
     async def __telegram_specific_new_job_panel_update(self, message_splitted: list[str]) -> None:
@@ -561,7 +561,10 @@ class President:
         ).total_seconds()
         if time_to_sleep > 0:
             await asyncio.sleep(time_to_sleep)
-        job[2] = await job[0].perform_task(job_order=job[1], president=self)
+        job[2] = await job[0].perform_task(
+            job_order=job[1],
+            reporter=self.telegram_report
+        )
 
     def get_daily_cron_jobs(
             self
