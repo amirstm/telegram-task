@@ -1,4 +1,4 @@
-python-telegram-bot[socks,job-queue]==20.5
+python-telegram-bot[socks,job-queue]==20.6
 python-dotenv==1.0.0
 wheel==0.41.2
 pytest==7.4.2
