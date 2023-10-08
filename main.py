@@ -1,8 +1,9 @@
+"""Manual test for telegram_task library"""
 import os
 import logging
 from datetime import datetime, time, timedelta
-from dotenv import load_dotenv
 from logging.handlers import TimedRotatingFileHandler
+from dotenv import load_dotenv
 import telegram.ext
 from telegram_task.president import President, TelegramDeputy
 from telegram_task.line import (
@@ -15,7 +16,6 @@ from telegram_task.samples import (
     CalculatorWorker,
     MathematicalOperation
 )
-from dataclasses import dataclass
 
 load_dotenv()
 
@@ -25,13 +25,14 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
 def main():
+    """Manually testing the enterprise"""
     logger = logging.getLogger("telegram_task")
     formatter = logging.Formatter(
         '%(asctime)s | %(name)s | %(levelname)s: %(message)s')
     logger.setLevel(logging.INFO)
-    logFilePath = "logs/log_"
+    log_file_path = "logs/log_"
     file_handler = TimedRotatingFileHandler(
-        filename=logFilePath, when='midnight', backupCount=30)
+        filename=log_file_path, when='midnight', backupCount=30)
     file_handler.suffix = '%Y_%m_%d.log'
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
@@ -43,24 +44,28 @@ def main():
     logger.addHandler(stream_handler)
 
     application = telegram.ext.ApplicationBuilder().proxy_url(
-        PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
+        PROXY_URL
+    ).token(
+        TELEGRAM_BOT_TOKEN
+    ).build()
     president = President(
         telegram_deputy=TelegramDeputy(
             telegram_app=application,
             telegram_admin_id=TELEGRAM_CHAT_ID
-        ))
-    line_manager1 = LineManager(
+        )
+    )
+    line_manager_1 = LineManager(
         worker=SleepyWorker(),
         cron_job_orders=[
-            CronJobOrder((datetime.now() + timedelta(seconds=300)).time())
+            CronJobOrder((datetime.now() + timedelta(seconds=600)).time())
         ]
     )
-    line_manager2 = LineManager(
+    line_manager_2 = LineManager(
         worker=CalculatorWorker(),
         cron_job_orders=[
             CronJobOrder(
                 daily_run_time=(
-                    datetime.now() + timedelta(seconds=600)
+                    datetime.now() + timedelta(seconds=1200)
                 ).time(),
                 job_description=CalculatorJobDescription(
                     input1=2,
@@ -77,7 +82,7 @@ def main():
                 )
             )]
     )
-    president.add_line(line_manager1, line_manager2)
+    president.add_line(line_manager_1, line_manager_2)
     president.start_operation()
 
 

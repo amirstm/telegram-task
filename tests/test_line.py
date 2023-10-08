@@ -1,3 +1,4 @@
+"""Testing line managers outside the enterprise"""
 import unittest
 from telegram_task.line import LineManager, TaskException, JobOrder
 from telegram_task.samples import (
@@ -38,8 +39,8 @@ class TestLine(unittest.IsolatedAsyncioTestCase):
     async def test_abandoned_calculator_worker_task_exception(self):
         """Abandoned calculator worker test"""
         worker = CalculatorWorker()
-        try:
-            report1 = await worker.perform_task(
+        with self.assertRaises(TaskException):
+            await worker.perform_task(
                 job_description=CalculatorJobDescription(
                     input1=1.6,
                     input2=2.6,
@@ -47,8 +48,6 @@ class TestLine(unittest.IsolatedAsyncioTestCase):
                     integer_part=True
                 )
             )
-        except Exception as te:
-            self.assertTrue(isinstance(te, TaskException))
 
     async def test_line_manager_calculator_success(self):
         """Test success of a calculator worker through a LineManager"""

@@ -1,8 +1,9 @@
+"""Building the library"""
 import setuptools
 
 setuptools.setup(
     name="telegram_task",
-    version="1.0.0",
+    version="1.0.1",
     author="Arka Equities & Securities",
     author_email="info@arkaequities.com",
     description="A telegram bot task manager wrapper.",

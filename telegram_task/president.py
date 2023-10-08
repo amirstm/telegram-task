@@ -86,6 +86,9 @@ class TelegramDeputy:
                         self._LOGGER.error(
                             "KeyError: exception on converting input."
                         )
+                    # pylint: disable=broad-except
+                    # Preventing an exception on handling a message \
+                    # from bringing down the whole operation
                     except Exception as ex:
                         self._LOGGER.fatal(
                             "Exception on handling [%s]: %s",
@@ -482,6 +485,7 @@ class President:
             self._LOGGER.info(
                 "Telegram bot listener is terminated in an improper manner."
             )
+            raise ex
 
     async def start_operation_async(self, lifespan: int = 0) -> None:
         """Start the operation of the enterprise after full initiation"""
@@ -501,6 +505,7 @@ class President:
             self._LOGGER.info(
                 "Telegram bot listener is terminated in an improper manner."
             )
+            raise ex
 
     def __automatic_killer(self, lifespan) -> None:
         """Method used for setting an automatic lifespan for operation"""

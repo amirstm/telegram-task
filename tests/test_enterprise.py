@@ -1,3 +1,4 @@
+"""Test the enterprise"""
 import unittest
 import os
 import asyncio
@@ -35,7 +36,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         super().__init__(*args, **kwargs)
 
     def test_president_add_lines(self):
-        """Test a president overseeing the operation of a sleepy worker"""
+        """Test a president having some lines"""
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
@@ -47,17 +48,23 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
             LineManager(worker=SleepyWorker()),
             LineManager(worker=CalculatorWorker()),
         )
-        print(president.lines)
         self.assertTrue(
             any((
-                x for x in president.lines if isinstance(x.worker, SleepyWorker) and x.display_name == SleepyWorker.__name__
+                x
+                for x in president.lines
+                if isinstance(x.worker, SleepyWorker) and
+                x.display_name == SleepyWorker.__name__
             )))
         self.assertTrue(
             any((
-                x for x in president.lines if isinstance(x.worker, CalculatorWorker) and x.display_name == CalculatorWorker.__name__
+                x
+                for x in president.lines
+                if isinstance(x.worker, CalculatorWorker) and
+                x.display_name == CalculatorWorker.__name__
             )))
 
     def test_president_operation_synchronous(self):
+        """Test synchronous run of operations by president"""
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
@@ -67,7 +74,13 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
             ))
         president.start_operation(lifespan=1)
 
-    async def run_job(self, president: President, line_manager: LineManager, job_description: JobDescription) -> bool:
+    async def run_job(
+            self,
+            president: President,
+            line_manager: LineManager,
+            job_description: JobDescription
+    ) -> bool:
+        """Asynchronously run a job"""
         return await line_manager.perform_task(
             job_order=JobOrder(job_description=job_description),
             reporter=president.telegram_report
@@ -97,7 +110,12 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         _, success = await group
         self.assertTrue(success)
 
-    async def run_jobs(self, president: President, jobs: list[(LineManager, JobDescription)]) -> list[bool]:
+    async def run_jobs(
+            self,
+            president: President,
+            jobs: list[(LineManager, JobDescription)]
+    ) -> list[bool]:
+        """Asynchronously run some jobs"""
         results = []
         for line_manager, job_description in jobs:
             result = await line_manager.perform_task(
@@ -109,7 +127,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         return results
 
     async def test_president_perform_multiple_jobs(self):
-        """Test a president overseeing the operation of a multiple lines"""
+        """Test a president overseeing the operation of multiple lines"""
         application = telegram.ext.ApplicationBuilder().proxy_url(
             PROXY_URL).token(TELEGRAM_BOT_TOKEN).build()
         president = President(
@@ -237,7 +255,7 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
         line_manager1 = LineManager(
             worker=SleepyWorker(),
             cron_job_orders=[
-                CronJobOrder((datetime.now() + timedelta(seconds=3)).time())
+                CronJobOrder((datetime.now() + timedelta(seconds=4)).time())
             ]
         )
         line_manager2 = LineManager(
@@ -245,19 +263,19 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
             cron_job_orders=[
                 CronJobOrder(
                     daily_run_time=(
-                        datetime.now() + timedelta(seconds=6)
+                        datetime.now() + timedelta(seconds=8)
                     ).time(),
                     job_description=CalculatorJobDescription(
-                        input1=2,
-                        input2=3,
+                        input1=3,
+                        input2=4,
                         operation=MathematicalOperation.POW
                     )
                 ),
                 CronJobOrder(
                     daily_run_time=time(hour=23, minute=59, second=57),
                     job_description=CalculatorJobDescription(
-                        input1=2,
-                        input2=3,
+                        input1=5,
+                        input2=6,
                         operation=MathematicalOperation.MUL
                     )
                 )]
@@ -271,6 +289,6 @@ class TestEnterprise(unittest.IsolatedAsyncioTestCase):
             ))
         president.add_line(line_manager1, line_manager2)
         await president.start_operation_async(lifespan=10)
-        self.assertTrue(president.daily_cron_jobs[0][2] == True)
-        self.assertTrue(president.daily_cron_jobs[1][2] == False)
+        self.assertTrue(president.daily_cron_jobs[0][2] is True)
+        self.assertTrue(president.daily_cron_jobs[1][2] is False)
         self.assertTrue(president.daily_cron_jobs[2][2] is None)

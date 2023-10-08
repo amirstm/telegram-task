@@ -135,6 +135,8 @@ class LineManager:
             self.__handle_task_exception(
                 job_order.job_code, exception, reporter
             )
+        # pylint: disable=broad-except
+        # Preventing an exception on a line from bringing down the whole operation
         except Exception as exception:
             self.__handle_unfamiliar_exception(
                 job_order.job_code, exception, reporter
