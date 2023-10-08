@@ -487,7 +487,7 @@ class President:
             )
             raise ex
 
-    async def start_operation_async(self, lifespan: int = 0) -> None:
+    async def start_operation_async(self, lifespan: int = None) -> None:
         """Start the operation of the enterprise after full initiation"""
         self._LOGGER.info(
             "President is starting the operation asynchronously."
