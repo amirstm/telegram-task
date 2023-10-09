@@ -84,6 +84,8 @@ class JobReport:
 
 class Worker(ABC):
     """Abstract class to be implemented for each kind of tasks the user may have"""
+    _LOGGER = logging.getLogger(__name__)
+
     @abstractmethod
     async def perform_task(self, job_description: JobDescription) -> JobReport:
         """Performs a specific task using the provided job description"""
@@ -155,7 +157,7 @@ class LineManager:
         if reporter:
             reporter(
                 text=f"""
-⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now():%Y/%m/%d %H:%M:%S}</b>.
+⛏ <b>{self}</b> starting job <b>{job_code}</b> at <b>{datetime.now(): %Y/%m/%d %H: %M: %S}</b>.
 """
             )
 
