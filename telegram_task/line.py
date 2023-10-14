@@ -99,6 +99,13 @@ class Worker(ABC):
 class TaskException(Exception):
     """Exception raised by a particular shift."""
 
+    def __init__(self, message, html_message: str = None):
+        # Call the base class constructor with the parameters it needs
+        super().__init__(message)
+
+        # Now for your custom code...
+        self.html_message: str = html_message if html_message else message
+
 
 class LineManager:
     """Has a single worker of a specific type and manages its tasks"""
@@ -214,11 +221,10 @@ class LineManager:
         if reporter:
             reporter(
                 text=f"""
-❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException: 
-{exception}
-Check the logs for more details.
-"""
-            )
+❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException.
+{exception.html_message}
+Check the logs for more details.\
+""")
 
     def __handle_unfamiliar_exception(
             self,
