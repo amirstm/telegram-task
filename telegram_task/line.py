@@ -214,7 +214,9 @@ class LineManager:
         if reporter:
             reporter(
                 text=f"""
-❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException. Check the logs for more details.
+❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException: 
+{exception}
+Check the logs for more details.
 """
             )
 
@@ -233,7 +235,8 @@ class LineManager:
         )
         if reporter:
             reporter(
-                text=f"""
-☠️ <b>{self}</b> on job <b>{job_code}</b> hit an unfamiliar exception. Check the logs for more details.
+                text=f"""\
+☠️ <b>{self}</b> on job <b>{job_code}</b> hit an unfamiliar exception. \
+Check the logs for more details.
 """
             )
