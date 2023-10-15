@@ -242,6 +242,10 @@ Message from unknown user [{update.effective_user.id}, \
             return to_type(raw_val)
         if to_type == bool:
             return raw_val.lower() in ["true", "1", "y"]
+        if to_type is date:
+            return datetime.strptime(raw_val, "%Y-%m-%d").date()
+        if to_type is datetime:
+            return datetime.strptime(raw_val, "%Y-%m-%d %H:%M:%S")
         if issubclass(to_type, Enum):
             return to_type[raw_val]
         raise ValueError
@@ -299,8 +303,9 @@ Please validate the job description for <b>{line_manager}</b> \
             [
                 InlineKeyboardButton(
                     text=f"{key} ✏️",
-                    switch_inline_query_current_chat=f"SpecificNewJobPanelUpdate {key} "
-                    + f"on job {job_order.job_code} : "
+                    switch_inline_query_current_chat=f"SpecificNewJobPanelUpdate {
+                        key} "
+                    + f"on job {job_order.job_code}: "
                 )
             ]
             for key, val in job_order.job_description.__dict__.items()
@@ -309,7 +314,8 @@ Please validate the job description for <b>{line_manager}</b> \
             [
                 InlineKeyboardButton(
                     text="Execute ✅",
-                    callback_data=f"ExecuteSpecificNewJob,{job_order.job_code}"
+                    callback_data=f"ExecuteSpecificNewJob, {
+                        job_order.job_code}"
                 )
             ]
         )
@@ -327,7 +333,7 @@ Please validate the job description for <b>{line_manager}</b> \
             [
                 InlineKeyboardButton(
                     text=str(i * 5 + j + 1),
-                    callback_data=f"SpecificNewJobPanel,{x.display_name}"
+                    callback_data=f"SpecificNewJobPanel, {x.display_name}"
                 )
                 for j, x in enumerate(self.president.lines[i:i + 5])
             ]
@@ -416,15 +422,16 @@ How may I help you today?
                     return "❌"
                 case _:
                     return "⚙️"
-        report = f"📑 Cron jobs for {datetime.now():%Y/%m/%d}:\n" + \
+        report = f"📑 Cron jobs for {datetime.now(): %Y/%m/%d}: \n" + \
             "\n".join(
                 [
-                    f"{job_status_to_emoji(x[2])} {x[0]} 🕔 {x[1].daily_run_time:%H:%M:%S}"
+                    f"{job_status_to_emoji(x[2])} {x[0]} 🕔 {
+                        x[1].daily_run_time:%H:%M:%S}"
                     for x in self.president.daily_cron_jobs
                 ]
-            ) \
+        ) \
             if self.president.daily_cron_jobs \
-            else f"📑 No cron jobs for {datetime.now():%Y/%m/%d}."
+            else f"📑 No cron jobs for {datetime.now(): %Y/%m/%d}."
         if do_log:
             self._LOGGER.info(report)
         self.telegram_report(report)
