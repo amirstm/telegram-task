@@ -225,6 +225,10 @@ Message from unknown user [{update.effective_user.id}, \
             return to_type(raw_val)
         if to_type == bool:
             return raw_val.lower() in ["true", "1", "y"]
+        if to_type is date:
+            return datetime.strptime(raw_val, "%Y-%m-%d").date()
+        if to_type is datetime:
+            return datetime.strptime(raw_val, "%Y-%m-%d %H:%M:%S")
         if issubclass(to_type, Enum):
             return to_type[raw_val]
         raise ValueError
