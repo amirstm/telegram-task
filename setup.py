@@ -3,7 +3,7 @@ import setuptools
 
 setuptools.setup(
     name="telegram_task",
-    version="1.0.8",
+    version="1.0.9",
     author="Arka Equities & Securities",
     author_email="info@arkaequities.com",
     description="A telegram bot task manager wrapper.",
@@ -17,12 +17,12 @@ personal assistant in running and handling jobs on a daily basis.
     install_requires=[
         "python-telegram-bot[socks,job-queue]==20.6",
         "python-dotenv==1.0.0",
-        "pytz==2023.3.post1"
+        "pytz==2023.3.post1",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: POSIX :: Linux",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
-    ]
+    ],
 )

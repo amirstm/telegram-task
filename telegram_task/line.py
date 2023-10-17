@@ -11,7 +11,7 @@ from dataclasses import dataclass
 @dataclass
 class JobDescription:
     """
-    JobDescription holds input for new tasks and should be inheritted 
+    JobDescription holds input for new tasks and should be inheritted
     in case a particular task has a more sophisticated job description.
     """
 
@@ -19,13 +19,12 @@ class JobDescription:
 @dataclass
 class JobOrder:
     """JobOrder is created for the worker to run a specific job/task once"""
+
     job_description: JobDescription = None
     job_code: uuid.UUID = None
 
     def __init__(
-        self,
-        job_description: JobDescription = None,
-        job_code: uuid.UUID = None
+        self, job_description: JobDescription = None, job_code: uuid.UUID = None
     ):
         if job_description:
             self.job_description = job_description
@@ -40,18 +39,19 @@ class JobOrder:
 @dataclass
 class CronJobOrder(JobOrder):
     """
-    CronJobOrder is like a JubOrder, 
+    CronJobOrder is like a JubOrder,
     but it holds necessary data to run the task on a daily schedul
     """
+
     daily_run_time: time = None
     off_days: list[int] = None
 
     def __init__(
-            self,
-            daily_run_time: time,
-            job_description: JobDescription = None,
-            job_code: uuid.UUID = uuid.uuid4(),
-            off_days: list[int] = None
+        self,
+        daily_run_time: time,
+        job_description: JobDescription = None,
+        job_code: uuid.UUID = uuid.uuid4(),
+        off_days: list[int] = None,
     ):
         self.daily_run_time = daily_run_time
         if off_days:
@@ -64,14 +64,11 @@ class CronJobOrder(JobOrder):
 @dataclass
 class JobReport:
     """Holds the results of running a job/task"""
+
     information: list[str] = None
     warnings: list[str] = None
 
-    def __init__(
-            self,
-            information: list[str] = None,
-            warnings: list[str] = None
-    ):
+    def __init__(self, information: list[str] = None, warnings: list[str] = None):
         if information is None:
             self.information = []
         else:
@@ -84,6 +81,7 @@ class JobReport:
 
 class Worker(ABC):
     """Abstract class to be implemented for each kind of tasks the user may have"""
+
     _LOGGER = logging.getLogger(__name__)
 
     @abstractmethod
@@ -109,58 +107,43 @@ class TaskException(Exception):
 
 class LineManager:
     """Has a single worker of a specific type and manages its tasks"""
+
     _LOGGER = logging.getLogger(__name__)
 
-    def __init__(
-        self,
-        worker: Worker,
-        cron_job_orders: list[CronJobOrder] = None
-    ):
+    def __init__(self, worker: Worker, cron_job_orders: list[CronJobOrder] = None):
         self.worker: Worker = worker
         self.display_name: str = worker.__class__.__name__
-        self.cron_job_orders: list[CronJobOrder] = cron_job_orders \
-            if cron_job_orders \
-            else []
+        self.cron_job_orders: list[CronJobOrder] = (
+            cron_job_orders if cron_job_orders else []
+        )
 
     def __str__(self) -> str:
         return self.display_name
 
     async def perform_task(
-        self,
-        job_order: JobOrder,
-        reporter: Callable[[str], None] = None
+        self, job_order: JobOrder, reporter: Callable[[str], None] = None
     ) -> bool:
         """Handles the execution of a specific task using the provided job order"""
-        self.__handle_job_start(
-            job_order.job_code, reporter
-        )
+        self.__handle_job_start(job_order.job_code, reporter)
         try:
-            report = await self.worker.perform_task(job_description=job_order.job_description)
-            self.__handle_job_report(
-                job_order.job_code, report, reporter
+            report = await self.worker.perform_task(
+                job_description=job_order.job_description
             )
+            self.__handle_job_report(job_order.job_code, report, reporter)
             return True
         except TaskException as exception:
-            self.__handle_task_exception(
-                job_order.job_code, exception, reporter
-            )
+            self.__handle_task_exception(job_order.job_code, exception, reporter)
         # pylint: disable=broad-except
         # Preventing an exception on a line from bringing down the whole operation
         except Exception as exception:
-            self.__handle_unfamiliar_exception(
-                job_order.job_code, exception, reporter
-            )
+            self.__handle_unfamiliar_exception(job_order.job_code, exception, reporter)
         return False
 
     def __handle_job_start(
-        self,
-        job_code: uuid.UUID,
-        reporter: Callable[[str], None] = None
+        self, job_code: uuid.UUID, reporter: Callable[[str], None] = None
     ) -> None:
         """Handle the initiation of a job/task"""
-        self._LOGGER.info(
-            "Starting to manage the job [%s]", {job_code}
-        )
+        self._LOGGER.info("Starting to manage the job [%s]", {job_code})
         if reporter:
             reporter(
                 text=f"""
@@ -172,29 +155,27 @@ class LineManager:
         self,
         job_code: uuid.UUID,
         report: JobReport,
-        reporter: Callable[[str], None] = None
+        reporter: Callable[[str], None] = None,
     ) -> None:
         """Handle report from a completed job/task"""
-        self.__handle_job_warnings(
-            job_code=job_code, warnings=report.warnings, reporter=reporter
-        )
-        information = "\n" + \
-            "\n".join(report.information) if report.information else ""
-        self._LOGGER.info(
-            "Job [%s] is complete:%s", job_code, information
-        )
+        self.__handle_job_warnings(job_code=job_code, warnings=report.warnings)
+        information = "\n" + "\n".join(report.information) if report.information else ""
+        self._LOGGER.info("Job [%s] is complete:%s", job_code, information)
         if reporter:
-            reporter(
-                text=f"""
+            if report.warnings:
+                text = f"""\
+✅⚠️ <b>{self}</b> on job <b>{job_code}</b> is done, despite some warnings were raised.{information}
+"""
+            else:
+                text = f"""\
 ✅ <b>{self}</b> on job <b>{job_code}</b> is done.{information}
 """
-            )
+            reporter(text=text)
 
     def __handle_job_warnings(
-            self,
-            job_code: uuid.UUID,
-            warnings: list[str],
-        reporter: Callable[[str], None] = None
+        self,
+        job_code: uuid.UUID,
+        warnings: list[str],
     ) -> None:
         """Handle a completed job/task's warnings, if any"""
         if warnings:
@@ -202,42 +183,35 @@ class LineManager:
             self._LOGGER.error(
                 "Job [%s] raised some warnings:\n%s", job_code, warnings_agg
             )
-            if reporter:
-                reporter(
-                    text=f"""
-⚠️ <b>{self}</b> on job <b>{job_code}</b> raised some warnings. Check the logs for more details.
-"""
-                )
 
     def __handle_task_exception(
         self,
         job_code: uuid.UUID,
         exception: TaskException,
-        reporter: Callable[[str], None] = None
+        reporter: Callable[[str], None] = None,
     ) -> None:
         """Handle familiar task exception"""
-        self._LOGGER.error("Job [%s] hit exception: %s",
-                           job_code, exception.__traceback__)
+        self._LOGGER.error(
+            "Job [%s] hit exception: %s", job_code, exception.__traceback__
+        )
         if reporter:
             reporter(
                 text=f"""
 ❌ <b>{self}</b> on job <b>{job_code}</b> hit TaskException.
 {exception.html_message}
 Check the logs for more details.\
-""")
+"""
+            )
 
     def __handle_unfamiliar_exception(
-            self,
-            job_code: uuid.UUID,
-            exception: Exception,
-        reporter: Callable[[str], None] = None
+        self,
+        job_code: uuid.UUID,
+        exception: Exception,
+        reporter: Callable[[str], None] = None,
     ) -> None:
         """Handle unfamiliar exception raised while performing a task"""
         self._LOGGER.fatal(
-            "Job [%s] hit exception: %s",
-            job_code,
-            exception,
-            exc_info=True
+            "Job [%s] hit exception: %s", job_code, exception, exc_info=True
         )
         if reporter:
             reporter(
