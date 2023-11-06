@@ -28,7 +28,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Analysing the code with pylint
       run: |
-        pylint telegram_task
+        pylint $(git ls-files '*.py')
     - name: Test with pytest
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
