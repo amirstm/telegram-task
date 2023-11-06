@@ -3,7 +3,7 @@ import setuptools
 
 setuptools.setup(
     name="telegram_task",
-    version="1.0.9",
+    version="1.0.10",
     author="Arka Equities & Securities",
     author_email="info@arkaequities.com",
     description="A telegram bot task manager wrapper.",

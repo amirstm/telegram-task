@@ -128,6 +128,8 @@ class LineManager:
         try:
             report = await self.worker.perform_task(
                 job_description=job_order.job_description
+                if job_order.job_description
+                else self.worker.default_job_description()
             )
             self.__handle_job_report(job_order.job_code, report, reporter)
             return True
